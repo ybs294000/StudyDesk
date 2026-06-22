@@ -1,0 +1,70 @@
+{
+  "studydesk_version": "1.0",
+  "export_date": "2026-06-20T18:05:00Z",
+  "type": "quiz",
+  "content": {
+    "name": "Biology Basics Practice",
+    "description": "Fundamental cell biology and human physiology questions for general study and app testing.",
+    "tags": ["biology", "basics", "mcq", "true_false"],
+    "settings": {
+      "shuffle_questions": false,
+      "shuffle_options": true,
+      "timer_mode": "per_quiz",
+      "timer_seconds": 900,
+      "show_feedback": "after_quiz",
+      "passing_score_percent": 50,
+      "marking": {
+        "correct_points": 2,
+        "wrong_points": -0.5,
+        "skipped_points": 0,
+        "negative_marking": true,
+        "partial_credit": false
+      }
+    },
+    "questions": [
+      {
+        "id": "bio_basic_001",
+        "type": "mcq",
+        "question": "Which part of the cell contains the genetic material in most eukaryotes?",
+        "options": ["Cell membrane", "Nucleus", "Ribosome", "Golgi body"],
+        "correct_index": 1,
+        "explanation": "The nucleus contains the chromosomes and most of the cell's genetic material.",
+        "points": 2
+      },
+      {
+        "id": "bio_basic_002",
+        "type": "mcq",
+        "question": "The human heart has how many chambers?",
+        "options": ["2", "3", "4", "5"],
+        "correct_index": 2,
+        "explanation": "The heart has two atria and two ventricles, making four chambers.",
+        "points": 2
+      },
+      {
+        "id": "bio_basic_003",
+        "type": "true_false",
+        "question": "Photosynthesis takes place mainly in the chloroplasts of plant cells.",
+        "correct_answer": true,
+        "explanation": "Chloroplasts contain chlorophyll and are the primary site of photosynthesis.",
+        "points": 2
+      },
+      {
+        "id": "bio_basic_004",
+        "type": "mcq",
+        "question": "Which blood cells help fight infection?",
+        "options": ["Red blood cells", "Platelets", "White blood cells", "Plasma proteins"],
+        "correct_index": 2,
+        "explanation": "White blood cells are part of the immune system and help defend the body.",
+        "points": 2
+      },
+      {
+        "id": "bio_basic_005",
+        "type": "true_false",
+        "question": "Mitochondria are often called the powerhouse of the cell.",
+        "correct_answer": true,
+        "explanation": "Mitochondria generate much of the ATP used for cellular energy.",
+        "points": 2
+      }
+    ]
+  }
+}

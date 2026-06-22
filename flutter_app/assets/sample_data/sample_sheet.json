@@ -1,0 +1,11 @@
+{
+  "studyforge_version": "1.0",
+  "export_date": "2026-06-04T10:00:00Z",
+  "type": "sheet",
+  "content": {
+    "name": "Complexity Cheat Sheet",
+    "category": "formulas",
+    "tags": ["dsa", "complexity"],
+    "markdown": "# Algorithm Complexity Cheat Sheet\n\n| Complexity | Name |\n|---|---|\n| O(1) | Constant |\n| O(log n) | Logarithmic |\n| O(n) | Linear |\n| O(n log n) | Linearithmic |\n| O(n²) | Quadratic |"
+  }
+}

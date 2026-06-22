@@ -1,0 +1,72 @@
+{
+  "studydesk_version": "1.0",
+  "export_date": "2026-06-20T18:00:00Z",
+  "type": "quiz",
+  "content": {
+    "name": "Math Foundations Practice",
+    "description": "Core arithmetic and algebra warm-up for quick testing and early practice sessions.",
+    "tags": ["math", "foundations", "mcq", "fill_blank"],
+    "settings": {
+      "shuffle_questions": false,
+      "shuffle_options": true,
+      "timer_mode": "per_quiz",
+      "timer_seconds": 900,
+      "show_feedback": "after_quiz",
+      "passing_score_percent": 50,
+      "marking": {
+        "correct_points": 2,
+        "wrong_points": -0.5,
+        "skipped_points": 0,
+        "negative_marking": true,
+        "partial_credit": false
+      }
+    },
+    "questions": [
+      {
+        "id": "math_found_001",
+        "type": "mcq",
+        "question": "If $3x + 5 = 20$, then the value of $x$ is:",
+        "options": ["3", "4", "5", "6"],
+        "correct_index": 2,
+        "explanation": "Subtract 5 from both sides to get 15, then divide by 3 to get 5.",
+        "points": 2
+      },
+      {
+        "id": "math_found_002",
+        "type": "mcq",
+        "question": "Which fraction is equivalent to $0.75$?",
+        "options": ["1/2", "2/3", "3/4", "4/5"],
+        "correct_index": 2,
+        "explanation": "Seventy-five hundredths simplifies to three fourths.",
+        "points": 2
+      },
+      {
+        "id": "math_found_003",
+        "type": "fill_blank",
+        "question": "Evaluate $12 \\div 3 + 4$. Enter only the numerical answer.",
+        "correct_answers": ["8"],
+        "case_sensitive": false,
+        "explanation": "Division first gives 4, then add 4 to get 8.",
+        "points": 2
+      },
+      {
+        "id": "math_found_004",
+        "type": "mcq",
+        "question": "The value of $5^2$ is:",
+        "options": ["10", "20", "25", "30"],
+        "correct_index": 2,
+        "explanation": "$5^2$ means 5 multiplied by itself, which is 25.",
+        "points": 2
+      },
+      {
+        "id": "math_found_005",
+        "type": "fill_blank",
+        "question": "Solve for $y$: $2y = 18$. Enter only the value of $y$.",
+        "correct_answers": ["9"],
+        "case_sensitive": false,
+        "explanation": "Divide both sides by 2 to get 9.",
+        "points": 2
+      }
+    ]
+  }
+}

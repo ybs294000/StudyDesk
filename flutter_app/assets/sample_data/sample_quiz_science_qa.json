@@ -1,0 +1,97 @@
+{
+  "studydesk_version": "1.0",
+  "export_date": "2026-06-20T22:10:00Z",
+  "type": "quiz",
+  "content": {
+    "name": "Science Q&A Practice",
+    "description": "Short-answer practice with keyword-based grading, model answers, and partial credit.",
+    "tags": ["science", "qa", "short_answer", "keyword_grading"],
+    "settings": {
+      "shuffle_questions": false,
+      "shuffle_options": false,
+      "timer_mode": "per_quiz",
+      "timer_seconds": 1200,
+      "show_feedback": "after_quiz",
+      "passing_score_percent": 50,
+      "marking": {
+        "correct_points": 4,
+        "wrong_points": -1,
+        "skipped_points": 0,
+        "negative_marking": true,
+        "partial_credit": true
+      }
+    },
+    "questions": [
+      {
+        "id": "qa_science_001",
+        "type": "short_answer",
+        "question": "Explain why mitochondria are called the powerhouse of the cell.",
+        "model_answer": "Mitochondria are called the powerhouse of the cell because they produce ATP through cellular respiration, supplying usable energy for cell activities.",
+        "keywords": ["ATP", "energy", "cellular respiration"],
+        "keyword_rules": [
+          {
+            "term": "ATP",
+            "aliases": ["adenosine triphosphate"],
+            "required": true,
+            "weight": 1.2
+          },
+          {
+            "term": "energy",
+            "aliases": ["usable energy"],
+            "required": true,
+            "weight": 1.0
+          },
+          {
+            "term": "cellular respiration",
+            "aliases": ["respiration"],
+            "required": false,
+            "weight": 0.8
+          }
+        ],
+        "min_words": 10,
+        "max_words": 50,
+        "minimum_keyword_matches": 2,
+        "minimum_keyword_score_percent": 0.6,
+        "allow_partial_credit": true,
+        "grading_mode": "keywords",
+        "explanation": "The key idea is that mitochondria generate ATP, which cells use as an energy source.",
+        "points": 4
+      },
+      {
+        "id": "qa_science_002",
+        "type": "short_answer",
+        "question": "Why does increasing surface area help the small intestine absorb nutrients efficiently?",
+        "model_answer": "A larger surface area provides more space for absorption, so nutrients can move into the bloodstream more efficiently through the villi and microvilli.",
+        "keywords": ["surface area", "absorption", "villi"],
+        "keyword_rules": [
+          {
+            "term": "surface area",
+            "aliases": ["larger area"],
+            "required": true,
+            "weight": 1.0
+          },
+          {
+            "term": "absorption",
+            "aliases": ["absorb nutrients", "nutrient uptake"],
+            "required": true,
+            "weight": 1.2
+          },
+          {
+            "term": "villi",
+            "aliases": ["microvilli"],
+            "required": false,
+            "weight": 0.8
+          }
+        ],
+        "min_words": 12,
+        "max_words": 60,
+        "minimum_keyword_matches": 2,
+        "minimum_keyword_score_percent": 0.65,
+        "allow_partial_credit": true,
+        "grading_mode": "keywords",
+        "explanation": "Credit should focus on the role of increased area in making nutrient absorption more effective.",
+        "points": 4
+      }
+    ]
+  }
+}

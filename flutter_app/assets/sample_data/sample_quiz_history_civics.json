@@ -1,0 +1,74 @@
+{
+  "studydesk_version": "1.0",
+  "export_date": "2026-06-20T18:10:00Z",
+  "type": "quiz",
+  "content": {
+    "name": "History & Civics Practice",
+    "description": "General history and civics practice set for humanities testing and mixed-subject revision.",
+    "tags": ["history", "civics", "mcq", "short_answer"],
+    "settings": {
+      "shuffle_questions": false,
+      "shuffle_options": true,
+      "timer_mode": "per_quiz",
+      "timer_seconds": 1200,
+      "show_feedback": "after_quiz",
+      "passing_score_percent": 50,
+      "marking": {
+        "correct_points": 2,
+        "wrong_points": -0.5,
+        "skipped_points": 0,
+        "negative_marking": true,
+        "partial_credit": false
+      }
+    },
+    "questions": [
+      {
+        "id": "hist_civ_001",
+        "type": "mcq",
+        "question": "Which civilisation is associated with cities such as Harappa and Mohenjo-daro?",
+        "options": ["Mesopotamian Civilisation", "Indus Valley Civilisation", "Roman Civilisation", "Mayan Civilisation"],
+        "correct_index": 1,
+        "explanation": "Harappa and Mohenjo-daro are key sites of the Indus Valley Civilisation.",
+        "points": 2
+      },
+      {
+        "id": "hist_civ_002",
+        "type": "mcq",
+        "question": "In a democracy, laws are generally made by:",
+        "options": ["Judges alone", "The legislature", "Private companies", "The army"],
+        "correct_index": 1,
+        "explanation": "The legislature is the branch typically responsible for making laws.",
+        "points": 2
+      },
+      {
+        "id": "hist_civ_003",
+        "type": "mcq",
+        "question": "The French Revolution began in which year?",
+        "options": ["1776", "1789", "1815", "1857"],
+        "correct_index": 1,
+        "explanation": "The French Revolution is widely dated to 1789.",
+        "points": 2
+      },
+      {
+        "id": "hist_civ_004",
+        "type": "short_answer",
+        "question": "Write a short answer explaining one reason why a written constitution is important in a democracy.",
+        "model_answer": "A written constitution defines the structure of government, protects rights, and sets limits on power so institutions remain accountable.",
+        "keywords": ["rights", "power", "government", "accountable", "rules"],
+        "min_words": 8,
+        "max_words": 40,
+        "explanation": "A good answer should mention limits on state power, rights, rules, or accountability.",
+        "points": 2
+      },
+      {
+        "id": "hist_civ_005",
+        "type": "mcq",
+        "question": "Which institution usually interprets the constitution in a constitutional democracy?",
+        "options": ["Judiciary", "Cabinet", "Election Commission", "Press Council"],
+        "correct_index": 0,
+        "explanation": "The judiciary, especially higher courts, interprets the constitution.",
+        "points": 2
+      }
+    ]
+  }
+}

@@ -1,0 +1,73 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../data/cards_repository.dart';
+import '../domain/card_record.dart';
+
+final deckCardsControllerProvider =
+    AsyncNotifierProviderFamily<DeckCardsController, List<CardRecord>, String>(
+      DeckCardsController.new,
+    );
+
+class DeckCardsController extends FamilyAsyncNotifier<List<CardRecord>, String> {
+  CardsRepository get _repository => ref.read(cardsRepositoryProvider);
+
+  @override
+  Future<List<CardRecord>> build(String arg) async {
+    final cards = await _repository.loadCards();
+    return _forDeck(cards, arg);
+  }
+
+  Future<void> addCard({
+    required String deckId,
+    required String front,
+    required String back,
+    required String hint,
+  }) async {
+    final allCards = await _repository.loadCards();
+    final now = DateTime.now();
+    final updated = [
+      ...allCards,
+      CardRecord(
+        id: now.microsecondsSinceEpoch.toString(),
+        deckId: deckId,
+        front: front.trim(),
+        back: back.trim(),
+        hint: hint.trim(),
+        schedulerVersion: 'adaptive_memory_v2',
+        state: 'new',
+        reviewCount: 0,
+        lapseCount: 0,
+        intervalDays: 0,
+        ease: 2.5,
+        stability: 0.2,
+        difficulty: 5,
+        dueAt: null,
+        lastReviewedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+    await _repository.saveCards(updated);
+    state = AsyncData(_forDeck(updated, deckId));
+  }
+
+  Future<void> updateCard(CardRecord card) async {
+    final allCards = await _repository.loadCards();
+    final updated = allCards.map((item) => item.id == card.id ? card : item).toList();
+    await _repository.saveCards(updated);
+    state = AsyncData(_forDeck(updated, arg));
+  }
+
+  Future<void> deleteCard(String cardId) async {
+    final allCards = await _repository.loadCards();
+    final updated = allCards.where((item) => item.id != cardId).toList();
+    await _repository.saveCards(updated);
+    state = AsyncData(_forDeck(updated, arg));
+  }
+
+  List<CardRecord> _forDeck(List<CardRecord> cards, String deckId) {
+    final filtered = cards.where((card) => card.deckId == deckId).toList()
+      ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt) * -1);
+    return filtered;
+  }
+}

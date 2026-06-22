@@ -1,0 +1,105 @@
+{
+  "studydesk_version": "1.0",
+  "export_date": "2026-06-20T12:10:00Z",
+  "type": "quiz",
+  "content": {
+    "name": "Physics & Mathematics Practice",
+    "description": "Original objective practice set with a mixed scoring pattern, including a section without negative marking.",
+    "tags": ["physics", "mathematics", "objective-practice", "mixed-format"],
+    "settings": {
+      "shuffle_questions": false,
+      "shuffle_options": true,
+      "timer_mode": "per_quiz",
+      "timer_seconds": 1800,
+      "show_feedback": "after_quiz",
+      "passing_score_percent": 40,
+      "marking": {
+        "correct_points": 4,
+        "wrong_points": -1,
+        "skipped_points": 0,
+        "negative_marking": true,
+        "partial_credit": false
+      },
+      "section_rules": [
+        {
+          "section_id": "part_a",
+          "name": "Single Correct MCQ",
+          "question_types": ["mcq"],
+          "negative_marking": true,
+          "wrong_points": -1
+        },
+        {
+          "section_id": "part_b",
+          "name": "Numerical Style",
+          "question_types": ["fill_blank"],
+          "negative_marking": false,
+          "wrong_points": 0
+        }
+      ]
+    },
+    "questions": [
+      {
+        "id": "physmath_q_001",
+        "type": "mcq",
+        "question": "A body moving with constant acceleration has its velocity increased from 10 m/s to 20 m/s in 5 s. The acceleration is:",
+        "options": ["1 m/s²", "2 m/s²", "5 m/s²", "10 m/s²"],
+        "correct_index": 1,
+        "explanation": "Acceleration = change in velocity / time = (20 - 10) / 5 = 2 m/s².",
+        "points": 4
+      },
+      {
+        "id": "physmath_q_002",
+        "type": "mcq",
+        "question": "The derivative of x² with respect to x is:",
+        "options": ["x", "2x", "x²", "2"],
+        "correct_index": 1,
+        "explanation": "By the power rule, d(x²)/dx = 2x.",
+        "points": 4
+      },
+      {
+        "id": "physmath_q_003",
+        "type": "mcq",
+        "question": "For an ideal gas undergoing an isothermal process, which quantity remains constant?",
+        "options": ["Pressure", "Volume", "Temperature", "Internal energy always increases"],
+        "correct_index": 2,
+        "explanation": "In an isothermal process, the temperature remains constant by definition.",
+        "points": 4
+      },
+      {
+        "id": "physmath_q_004",
+        "type": "mcq",
+        "question": "If sin θ = 1/2 and θ is acute, then cos θ is:",
+        "options": ["1/2", "√3/2", "√2/2", "3/2"],
+        "correct_index": 1,
+        "explanation": "For an acute angle with sin θ = 1/2, θ = 30°, so cos θ = √3/2.",
+        "points": 4
+      },
+      {
+        "id": "physmath_q_005",
+        "type": "fill_blank",
+        "question": "A particle travels 24 m in 3 s with uniform speed. Enter the speed in m/s.",
+        "correct_answers": ["8"],
+        "case_sensitive": false,
+        "explanation": "Speed = distance / time = 24 / 3 = 8 m/s.",
+        "points": 4,
+        "grading": {
+          "negative_marking": false,
+          "wrong_points": 0
+        }
+      },
+      {
+        "id": "physmath_q_006",
+        "type": "fill_blank",
+        "question": "Evaluate 2 + 3 × 4. Enter only the numerical answer.",
+        "correct_answers": ["14"],
+        "case_sensitive": false,
+        "explanation": "Apply multiplication first: 3 × 4 = 12, then add 2 to get 14.",
+        "points": 4,
+        "grading": {
+          "negative_marking": false,
+          "wrong_points": 0
+        }
+      }
+    ]
+  }
+}

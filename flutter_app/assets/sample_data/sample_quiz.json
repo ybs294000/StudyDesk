@@ -1,0 +1,42 @@
+{
+  "studyforge_version": "1.0",
+  "export_date": "2026-06-04T10:00:00Z",
+  "type": "quiz",
+  "content": {
+    "name": "DSA Fundamentals Quiz",
+    "description": "Tests core data structure concepts.",
+    "tags": ["dsa", "practice"],
+    "settings": {
+      "shuffle_questions": true,
+      "shuffle_options": true,
+      "timer_mode": "per_quiz",
+      "timer_seconds": 900,
+      "show_feedback": "after_quiz",
+      "passing_score_percent": 60,
+      "marking": {
+        "correct_points": 4,
+        "wrong_points": -1,
+        "skipped_points": 0,
+        "negative_marking": true,
+        "partial_credit": false
+      },
+      "section_rules": [
+        {
+          "section_id": "part_a",
+          "name": "MCQ Section",
+          "question_types": ["mcq", "true_false"],
+          "negative_marking": true,
+          "wrong_points": -1
+        },
+        {
+          "section_id": "part_b",
+          "name": "TITA / Numerical Section",
+          "question_types": ["fill_blank"],
+          "negative_marking": false,
+          "wrong_points": 0
+        }
+      ]
+    },
+    "questions": []
+  }
+}

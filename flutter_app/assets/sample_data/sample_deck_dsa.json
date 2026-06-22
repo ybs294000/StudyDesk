@@ -1,0 +1,48 @@
+{
+  "studyforge_version": "1.0",
+  "export_date": "2026-06-04T10:00:00Z",
+  "type": "deck",
+  "content": {
+    "name": "Data Structures — Core Concepts",
+    "description": "Fundamental data structures for CS students",
+    "tags": ["cs", "dsa", "exam-prep"],
+    "cards": [
+      {
+        "id": "card_001",
+        "front": "What is the **time complexity** of searching in a Hash Table (average case)?",
+        "back": "**O(1)** — constant time\n\nHash tables use a hash function to map keys directly to bucket indices, so on average, no traversal is needed.\n\n*Worst case: O(n) due to collisions*",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["hash-table", "complexity"],
+        "hint": "Think about what a hash function does"
+      },
+      {
+        "id": "card_002",
+        "front": "What is a **Binary Search Tree (BST)**? State the key property.",
+        "back": "A BST is a binary tree where for every node:\n- All values in the **left** subtree are **less than** the node\n- All values in the **right** subtree are **greater than** the node\n\nThis enables O(log n) search on average.",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["trees", "bst"],
+        "hint": "Left < Root < Right"
+      },
+      {
+        "id": "card_003",
+        "front": "What is the difference between a **Stack** and a **Queue**?",
+        "back": "**Stack** — LIFO (Last In, First Out)\n- Push adds to top, Pop removes from top\n- Example: function call stack, undo history\n\n**Queue** — FIFO (First In, First Out)\n- Enqueue adds to back, Dequeue removes from front\n- Example: print queue, BFS traversal",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["stack", "queue", "linear"],
+        "hint": "Think of a stack of plates vs a queue at a shop"
+      },
+      {
+        "id": "card_004",
+        "front": "What is **Big-O notation** and what does O(n²) mean?",
+        "back": "Big-O describes the **upper bound** of an algorithm's time or space complexity as input size *n* grows.\n\n**O(n²)** = quadratic time:\n- Runtime grows proportional to n squared\n- Example: nested loops iterating over the same array\n- Doubles n → 4× slower",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["complexity", "big-o"],
+        "hint": null
+      }
+    ]
+  }
+}

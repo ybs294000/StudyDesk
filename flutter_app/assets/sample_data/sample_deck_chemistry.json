@@ -1,0 +1,39 @@
+{
+  "studyforge_version": "1.0",
+  "export_date": "2026-06-04T10:30:00Z",
+  "type": "deck",
+  "content": {
+    "name": "Functional Groups",
+    "description": "Common organic functional groups and their properties",
+    "tags": ["basics", "exam-prep"],
+    "cards": [
+      {
+        "id": "card_001",
+        "front": "What is the functional group of an **alcohol**?",
+        "back": "Hydroxyl group: **–OH**\n\nExample: Ethanol (CH₃CH₂OH)",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["functional-groups", "alcohol"],
+        "hint": "Think of water with one H replaced"
+      },
+      {
+        "id": "card_002",
+        "front": "Draw the structure of a **carboxyl group**",
+        "back": "**–COOH** (or –C(=O)OH)\n\nContains both a carbonyl and a hydroxyl group",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["functional-groups", "acid"],
+        "hint": null
+      },
+      {
+        "id": "card_003",
+        "front": "What is the characteristic bond in an **alkene**?",
+        "back": "A carbon-carbon **double bond**: **C=C**.\n\nThis bond makes alkenes more reactive than alkanes.",
+        "front_image": null,
+        "back_image": null,
+        "tags": ["alkene", "bonding"],
+        "hint": "It has one more bond than an alkane."
+      }
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub/
+**/build/
+**/coverage/
+
+# Flutter platform build outputs
+**/android/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/local.properties
+**/ios/Pods/
+**/ios/.symlinks/
+**/macos/Pods/
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/artifacts/
+**/*.apk
+**/*.aab
+**/*.apks
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+Desktop.ini
+
+# Secrets / signing
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+key.properties
+google-services.json
+GoogleService-Info.plist
+
+# Local notes / scratch
+*.log
+*.tmp
+.DS_Store
+
+# Private project memo
+.studydesk-private-memo.md
+.studydesk-push-guideline.md
+
+# Internal assistant/reference material
+docs/*_INSTRUCTIONS.md
+claude_reference_flutter_app/
+streamlit_prototype/
