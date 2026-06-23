@@ -41,7 +41,7 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
       updatedAt: now,
     );
     final updated = [...allNotes, note];
-    await _repository.saveNotes(updated);
+    await _repository.upsertNote(note);
     state = AsyncData(_forSubject(updated, subjectId));
     return note;
   }
@@ -78,7 +78,7 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
     final updated = allNotes
         .map((item) => item.id == normalizedNote.id ? normalizedNote : item)
         .toList();
-    await _repository.saveNotes(updated);
+    await _repository.upsertNote(normalizedNote);
     state = AsyncData(_forSubject(updated, arg));
     return normalizedNote;
   }
@@ -86,7 +86,7 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
   Future<void> deleteNote(String noteId) async {
     final allNotes = await _repository.loadNotes();
     final updated = allNotes.where((note) => note.id != noteId).toList();
-    await _repository.saveNotes(updated);
+    await _repository.deleteNote(noteId);
     state = AsyncData(_forSubject(updated, arg));
   }
 

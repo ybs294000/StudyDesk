@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/card_record.dart';
@@ -10,6 +11,9 @@ const _cardsStorageKey = 'cards_v1';
 abstract class CardsRepository {
   Future<List<CardRecord>> loadCards();
   Future<void> saveCards(List<CardRecord> cards);
+  Future<void> upsertCard(CardRecord card);
+  Future<void> upsertCards(Iterable<CardRecord> cards);
+  Future<void> deleteCard(String id);
 }
 
 final cardsRepositoryProvider = Provider<CardsRepository>((ref) {
@@ -33,6 +37,29 @@ class SharedPreferencesCardsRepository implements CardsRepository {
     final prefs = await SharedPreferences.getInstance();
     final payload = cards.map((card) => card.toJson()).toList();
     await prefs.setStringList(_cardsStorageKey, payload);
+  }
+
+  @override
+  Future<void> upsertCard(CardRecord card) async {
+    await upsertCards([card]);
+  }
+
+  @override
+  Future<void> upsertCards(Iterable<CardRecord> cards) async {
+    final current = await loadCards();
+    final byId = {for (final item in current) item.id: item};
+    for (final card in cards) {
+      byId[card.id] = card;
+    }
+    final updated = byId.values.toList()
+      ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt) * -1);
+    await saveCards(updated);
+  }
+
+  @override
+  Future<void> deleteCard(String id) async {
+    final cards = await loadCards();
+    await saveCards(cards.where((item) => item.id != id).toList());
   }
 }
 
@@ -119,5 +146,44 @@ class SqliteCardsRepository implements CardsRepository {
         }
       }
     });
+  }
+
+  @override
+  Future<void> upsertCard(CardRecord card) async {
+    await upsertCards([card]);
+  }
+
+  @override
+  Future<void> upsertCards(Iterable<CardRecord> cards) async {
+    final db = await _appDatabase.instance;
+    final batch = db.batch();
+    for (final card in cards) {
+      batch.insert('cards', {
+        'id': card.id,
+        'deck_id': card.deckId,
+        'front': card.front,
+        'back': card.back,
+        'hint': card.hint,
+        'scheduler_version': card.schedulerVersion,
+        'study_state': card.state,
+        'review_count': card.reviewCount,
+        'lapse_count': card.lapseCount,
+        'interval_days': card.intervalDays,
+        'ease': card.ease,
+        'stability': card.stability,
+        'difficulty': card.difficulty,
+        'due_at': card.dueAt?.toIso8601String(),
+        'last_reviewed_at': card.lastReviewedAt?.toIso8601String(),
+        'created_at': card.createdAt.toIso8601String(),
+        'updated_at': card.updatedAt.toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  @override
+  Future<void> deleteCard(String id) async {
+    final db = await _appDatabase.instance;
+    await db.delete('cards', where: 'id = ?', whereArgs: [id]);
   }
 }

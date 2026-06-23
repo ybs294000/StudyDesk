@@ -86,11 +86,7 @@ class StudySessionController
       reviewedAt: reviewedAt,
     );
 
-    final allCards = await _cardsRepository.loadCards();
-    final updatedCards = allCards
-        .map((card) => card.id == updatedCard.id ? updatedCard : card)
-        .toList();
-    await _cardsRepository.saveCards(updatedCards);
+    await _cardsRepository.upsertCard(updatedCard);
     ref.invalidate(deckCardsControllerProvider(arg));
 
     final remaining = [...current.queue]..removeAt(current.currentIndex);

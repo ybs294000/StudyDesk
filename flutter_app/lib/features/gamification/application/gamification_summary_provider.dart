@@ -12,6 +12,12 @@ final gamificationSummaryProvider = FutureProvider<GamificationSummary>((ref) as
   final sessions = await ref.read(studySessionsRepositoryProvider).loadSessions();
   final settings = ref.watch(profileSettingsControllerProvider);
 
+  if (!settings.gamificationEnabled) {
+    return GamificationSummary.disabled(
+      dailyGoalMinutes: settings.dailyGoalMinutes,
+    );
+  }
+
   return GamificationSummary.fromData(
     dashboard: dashboard,
     sessions: sessions,
@@ -21,6 +27,7 @@ final gamificationSummaryProvider = FutureProvider<GamificationSummary>((ref) as
 
 class GamificationSummary {
   const GamificationSummary({
+    required this.isEnabled,
     required this.totalXp,
     required this.currentLevel,
     required this.levelStartXp,
@@ -39,6 +46,7 @@ class GamificationSummary {
     required this.totalSessionCount,
   });
 
+  final bool isEnabled;
   final int totalXp;
   final int currentLevel;
   final int levelStartXp;
@@ -69,6 +77,30 @@ class GamificationSummary {
   }
 
   bool get goalReachedToday => dailyGoalMinutes > 0 && todayMinutes >= dailyGoalMinutes;
+
+  factory GamificationSummary.disabled({
+    required int dailyGoalMinutes,
+  }) {
+    return GamificationSummary(
+      isEnabled: false,
+      totalXp: 0,
+      currentLevel: 1,
+      levelStartXp: 0,
+      nextLevelXp: 100,
+      todayMinutes: 0,
+      dailyGoalMinutes: dailyGoalMinutes,
+      goalStreakDays: 0,
+      weeklyMinutes: 0,
+      weeklyReviewedCount: 0,
+      weeklySessionCount: 0,
+      weeklyQuizAccuracyRate: 0,
+      hasWeeklyQuizData: false,
+      unlockedMilestones: const [],
+      nextMilestone: null,
+      totalReviewedCount: 0,
+      totalSessionCount: 0,
+    );
+  }
 
   factory GamificationSummary.fromData({
     required DashboardSummary dashboard,
@@ -142,6 +174,7 @@ class GamificationSummary {
     );
 
     return GamificationSummary(
+      isEnabled: true,
       totalXp: totalXp,
       currentLevel: currentLevel,
       levelStartXp: levelStartXp,

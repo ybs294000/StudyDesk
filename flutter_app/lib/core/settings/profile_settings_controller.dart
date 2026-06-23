@@ -5,6 +5,9 @@ const _displayNameKey = 'profile_display_name';
 const _dailyGoalKey = 'profile_daily_goal_minutes';
 const _customSchemaTemplateKey = 'custom_schema_template_v1';
 const _schemaPresetKey = 'schema_preset_v1';
+const _backupDirectoryPathKey = 'backup_directory_path_v1';
+const _autoBackupImportsKey = 'auto_backup_imports_v1';
+const _gamificationEnabledKey = 'gamification_enabled_v1';
 
 final profileSettingsControllerProvider =
     NotifierProvider<ProfileSettingsController, ProfileSettingsState>(
@@ -26,6 +29,9 @@ class ProfileSettingsController extends Notifier<ProfileSettingsState> {
       selectedSchemaPreset: SchemaPresetX.fromStorage(
         prefs.getString(_schemaPresetKey),
       ),
+      backupDirectoryPath: prefs.getString(_backupDirectoryPathKey),
+      autoBackupBeforeImports: prefs.getBool(_autoBackupImportsKey) ?? true,
+      gamificationEnabled: prefs.getBool(_gamificationEnabledKey) ?? true,
       customSchemaTemplate:
           prefs.getString(_customSchemaTemplateKey) ??
           ProfileSettingsState.defaultCustomSchemaTemplate,
@@ -37,18 +43,31 @@ class ProfileSettingsController extends Notifier<ProfileSettingsState> {
     required int dailyGoalMinutes,
     required SchemaPreset selectedSchemaPreset,
     required String customSchemaTemplate,
+    required String? backupDirectoryPath,
+    required bool autoBackupBeforeImports,
+    required bool gamificationEnabled,
   }) async {
     state = ProfileSettingsState(
       displayName: displayName,
       dailyGoalMinutes: dailyGoalMinutes,
       selectedSchemaPreset: selectedSchemaPreset,
       customSchemaTemplate: customSchemaTemplate,
+      backupDirectoryPath: backupDirectoryPath,
+      autoBackupBeforeImports: autoBackupBeforeImports,
+      gamificationEnabled: gamificationEnabled,
     );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_displayNameKey, displayName);
     await prefs.setInt(_dailyGoalKey, dailyGoalMinutes);
     await prefs.setString(_schemaPresetKey, selectedSchemaPreset.storageValue);
     await prefs.setString(_customSchemaTemplateKey, customSchemaTemplate);
+    if (backupDirectoryPath == null || backupDirectoryPath.trim().isEmpty) {
+      await prefs.remove(_backupDirectoryPathKey);
+    } else {
+      await prefs.setString(_backupDirectoryPathKey, backupDirectoryPath.trim());
+    }
+    await prefs.setBool(_autoBackupImportsKey, autoBackupBeforeImports);
+    await prefs.setBool(_gamificationEnabledKey, gamificationEnabled);
   }
 }
 
@@ -58,12 +77,18 @@ class ProfileSettingsState {
     required this.dailyGoalMinutes,
     required this.selectedSchemaPreset,
     required this.customSchemaTemplate,
+    required this.backupDirectoryPath,
+    required this.autoBackupBeforeImports,
+    required this.gamificationEnabled,
   });
 
   final String displayName;
   final int dailyGoalMinutes;
   final SchemaPreset selectedSchemaPreset;
   final String customSchemaTemplate;
+  final String? backupDirectoryPath;
+  final bool autoBackupBeforeImports;
+  final bool gamificationEnabled;
 
   String get activeSchemaTemplate => selectedSchemaPreset == SchemaPreset.defaultSchema
       ? builtInSchemaTemplate
@@ -137,6 +162,9 @@ class ProfileSettingsState {
       dailyGoalMinutes: 45,
       selectedSchemaPreset: SchemaPreset.defaultSchema,
       customSchemaTemplate: defaultCustomSchemaTemplate,
+      backupDirectoryPath: null,
+      autoBackupBeforeImports: true,
+      gamificationEnabled: true,
     );
   }
 }

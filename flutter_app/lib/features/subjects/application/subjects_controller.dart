@@ -34,7 +34,7 @@ class SubjectsController extends AsyncNotifier<List<SubjectRecord>> {
     final updated = [...current, subject]
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     state = AsyncData(updated);
-    await _repository.saveSubjects(updated);
+    await _repository.upsertSubject(subject);
   }
 
   Future<void> updateSubject(SubjectRecord subject) async {
@@ -44,13 +44,13 @@ class SubjectsController extends AsyncNotifier<List<SubjectRecord>> {
         .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     state = AsyncData(updated);
-    await _repository.saveSubjects(updated);
+    await _repository.upsertSubject(subject);
   }
 
   Future<void> deleteSubject(String id) async {
     final current = await future;
     final updated = current.where((item) => item.id != id).toList();
     state = AsyncData(updated);
-    await _repository.saveSubjects(updated);
+    await _repository.deleteSubject(id);
   }
 }

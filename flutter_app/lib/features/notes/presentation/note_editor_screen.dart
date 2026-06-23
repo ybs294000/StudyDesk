@@ -14,6 +14,8 @@ import '../../cards/presentation/widgets/card_editor_sheet.dart';
 import '../../decks/application/subject_decks_controller.dart';
 import '../../decks/domain/deck_record.dart';
 import '../../decks/presentation/widgets/deck_editor_sheet.dart';
+import '../../quizzes/application/subject_quizzes_controller.dart';
+import '../../quizzes/domain/quiz_models.dart';
 import '../../units/application/subject_units_controller.dart';
 import '../../units/domain/subject_unit_record.dart';
 import '../application/note_markdown_utils.dart';
@@ -48,6 +50,10 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
 
   void _goBackToNotes() {
     if (!mounted) {
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
       return;
     }
     context.go('/subjects/${widget.subjectId}/notes?noteId=${widget.noteId}');
@@ -132,6 +138,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
                   onImportBody: _replaceBodyFromMarkdown,
                   onExportMarkdown: _exportMarkdown,
                   onCreateCard: () => _createCardFromSelection(decksAsync),
+                  onGenerateQaQuiz: _generateQaQuizFromNote,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Expanded(
@@ -348,10 +355,10 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
   Future<void> _openOrCreateLinkedNote(String noteTitle) async {
     await _saveNow();
     final notes = await ref.read(subjectNotesControllerProvider(widget.subjectId).future);
-    final existing = resolveLinkedNote(notes: notes, title: noteTitle);
+      final existing = resolveLinkedNote(notes: notes, title: noteTitle);
     if (existing != null) {
       if (mounted) {
-        context.go('/subjects/${widget.subjectId}/notes/${existing.id}');
+        context.push('/subjects/${widget.subjectId}/notes/${existing.id}');
       }
       return;
     }
@@ -366,7 +373,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
             bodyMarkdown: '# $noteTitle\n\n',
           );
       if (mounted) {
-        context.go('/subjects/${widget.subjectId}/notes/${created.id}');
+        context.push('/subjects/${widget.subjectId}/notes/${created.id}');
       }
     } catch (error) {
       _showMessage('Could not create linked note: $error');
@@ -429,6 +436,111 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
       _showMessage('Added card to ${targetDeck.name}.');
     } catch (error) {
       _showMessage('Could not create card: $error');
+    }
+  }
+
+  Future<void> _generateQaQuizFromNote() async {
+    await _saveNow();
+    final title = _titleController.text.trim().isEmpty
+        ? 'Untitled Note'
+        : _titleController.text.trim();
+    final sections = extractSections(_bodyController.text);
+    if (sections.isEmpty) {
+      _showMessage(
+        'Add structured headings with content first so StudyDesk can generate Q&A prompts from the note.',
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final questions = <QuizQuestion>[];
+    for (var index = 0; index < sections.length; index += 1) {
+      final section = sections[index];
+      final keywords = deriveKeywordsFromMarkdown(section.bodyMarkdown);
+      if (keywords.isEmpty) {
+        continue;
+      }
+      questions.add(
+        QuizQuestion(
+          id: '${now.microsecondsSinceEpoch}_note_qa_$index',
+          type: QuizQuestionType.shortAnswer,
+          question: 'Explain ${section.heading}.',
+          options: const [],
+          correctIndex: null,
+          correctAnswer: null,
+          correctAnswers: const [],
+          caseSensitive: false,
+          modelAnswer: section.bodyMarkdown,
+          keywords: keywords,
+          keywordRules: [
+            for (final keyword in keywords)
+              QuizKeywordRule(
+                term: keyword,
+                aliases: const [],
+                required: true,
+                weight: 1,
+              ),
+          ],
+          minWords: 20,
+          maxWords: null,
+          minimumKeywordMatches: keywords.length >= 4 ? 2 : 1,
+          minimumKeywordScorePercent: 0.35,
+          allowPartialCredit: true,
+          gradingMode: 'keywords',
+          explanation: section.bodyMarkdown,
+          points: 5,
+          grading: null,
+        ),
+      );
+    }
+
+    if (questions.isEmpty) {
+      _showMessage(
+        'StudyDesk could not derive grading keywords from this note yet. Add more explanatory text under headings and try again.',
+      );
+      return;
+    }
+
+    final quiz = QuizRecord(
+      id: now.microsecondsSinceEpoch.toString(),
+      subjectId: widget.subjectId,
+      unitId: _selectedUnitId,
+      name: '$title Q&A Recall',
+      description:
+          'Generated from note sections in $title for structured recall practice.',
+      tags: normalizeTags([
+        ..._tagsController.text.split(',').map((tag) => tag.trim()),
+        'notes-generated',
+        'qa-recall',
+      ]),
+      settings: const QuizSettings(
+        shuffleQuestions: false,
+        shuffleOptions: false,
+        timerMode: 'none',
+        timerSeconds: 0,
+        showFeedback: 'after_quiz',
+        passingScorePercent: null,
+        marking: QuizMarking(
+          correctPoints: 5,
+          wrongPoints: 0,
+          skippedPoints: 0,
+          negativeMarking: false,
+          partialCredit: true,
+        ),
+        sectionRules: [],
+      ),
+      questions: questions,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    try {
+      await ref
+          .read(subjectQuizzesControllerProvider(widget.subjectId).notifier)
+          .upsertQuiz(quiz);
+      _showMessage('Created ${quiz.name} with ${questions.length} Q&A prompts.');
+    } catch (error) {
+      _showMessage('Could not generate Q&A quiz: $error');
     }
   }
 
@@ -535,6 +647,7 @@ class _EditorTopBar extends StatelessWidget {
     required this.onImportBody,
     required this.onExportMarkdown,
     required this.onCreateCard,
+    required this.onGenerateQaQuiz,
   });
 
   final TextEditingController titleController;
@@ -547,6 +660,7 @@ class _EditorTopBar extends StatelessWidget {
   final Future<void> Function() onImportBody;
   final Future<void> Function() onExportMarkdown;
   final Future<void> Function() onCreateCard;
+  final Future<void> Function() onGenerateQaQuiz;
 
   @override
   Widget build(BuildContext context) {
@@ -642,6 +756,11 @@ class _EditorTopBar extends StatelessWidget {
               onPressed: onCreateCard,
               icon: const Icon(Icons.style_rounded),
               label: const Text('Create Card from Selection'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onGenerateQaQuiz,
+              icon: const Icon(Icons.quiz_rounded),
+              label: const Text('Generate Q&A Quiz'),
             ),
           ],
         ),
@@ -881,7 +1000,13 @@ class _MissingNoteState extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
-              onPressed: () => context.go('/subjects/$subjectId/notes'),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                  return;
+                }
+                context.go('/subjects/$subjectId/notes');
+              },
               child: const Text('Back to Notes'),
             ),
           ],

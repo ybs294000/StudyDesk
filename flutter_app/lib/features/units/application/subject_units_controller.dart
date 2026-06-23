@@ -39,7 +39,7 @@ class SubjectUnitsController
       updatedAt: now,
     );
     final updated = [...allUnits, unit];
-    await _repository.saveUnits(updated);
+    await _repository.upsertUnit(unit);
     state = AsyncData(_forSubject(updated, subjectId));
     return unit;
   }
@@ -59,7 +59,7 @@ class SubjectUnitsController
     final updated = allUnits
         .map((item) => item.id == normalized.id ? normalized : item)
         .toList();
-    await _repository.saveUnits(updated);
+    await _repository.upsertUnit(normalized);
     state = AsyncData(_forSubject(updated, arg));
     return normalized;
   }
@@ -67,7 +67,7 @@ class SubjectUnitsController
   Future<void> deleteUnit(String unitId) async {
     final allUnits = await _repository.loadUnits();
     final updated = allUnits.where((unit) => unit.id != unitId).toList();
-    await _repository.saveUnits(updated);
+    await _repository.deleteUnit(unitId);
     state = AsyncData(_forSubject(updated, arg));
   }
 

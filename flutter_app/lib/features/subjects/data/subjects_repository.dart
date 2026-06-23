@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/subject_record.dart';
@@ -10,6 +11,8 @@ const _subjectsStorageKey = 'subjects_v1';
 abstract class SubjectsRepository {
   Future<List<SubjectRecord>> loadSubjects();
   Future<void> saveSubjects(List<SubjectRecord> subjects);
+  Future<void> upsertSubject(SubjectRecord subject);
+  Future<void> deleteSubject(String id);
 }
 
 final subjectsRepositoryProvider = Provider<SubjectsRepository>((ref) {
@@ -33,6 +36,23 @@ class SharedPreferencesSubjectsRepository implements SubjectsRepository {
     final prefs = await SharedPreferences.getInstance();
     final payload = subjects.map((subject) => subject.toJson()).toList();
     await prefs.setStringList(_subjectsStorageKey, payload);
+  }
+
+  @override
+  Future<void> upsertSubject(SubjectRecord subject) async {
+    final subjects = await loadSubjects();
+    final updated = [
+      for (final item in subjects)
+        if (item.id != subject.id) item,
+      subject,
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    await saveSubjects(updated);
+  }
+
+  @override
+  Future<void> deleteSubject(String id) async {
+    final subjects = await loadSubjects();
+    await saveSubjects(subjects.where((item) => item.id != id).toList());
   }
 }
 
@@ -94,5 +114,24 @@ class SqliteSubjectsRepository implements SubjectsRepository {
         }
       }
     });
+  }
+
+  @override
+  Future<void> upsertSubject(SubjectRecord subject) async {
+    final db = await _appDatabase.instance;
+    await db.insert('subjects', {
+      'id': subject.id,
+      'name': subject.name,
+      'emoji': subject.emoji,
+      'color_value': subject.colorValue,
+      'created_at': subject.createdAt.toIso8601String(),
+      'updated_at': subject.updatedAt.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> deleteSubject(String id) async {
+    final db = await _appDatabase.instance;
+    await db.delete('subjects', where: 'id = ?', whereArgs: [id]);
   }
 }

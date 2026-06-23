@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/subject_unit_record.dart';
@@ -10,6 +11,8 @@ const _subjectUnitsStorageKey = 'subject_units_v1';
 abstract class SubjectUnitsRepository {
   Future<List<SubjectUnitRecord>> loadUnits();
   Future<void> saveUnits(List<SubjectUnitRecord> units);
+  Future<void> upsertUnit(SubjectUnitRecord unit);
+  Future<void> deleteUnit(String id);
 }
 
 final subjectUnitsRepositoryProvider = Provider<SubjectUnitsRepository>((ref) {
@@ -35,6 +38,23 @@ class SharedPreferencesSubjectUnitsRepository implements SubjectUnitsRepository 
       _subjectUnitsStorageKey,
       units.map((unit) => unit.toJson()).toList(),
     );
+  }
+
+  @override
+  Future<void> upsertUnit(SubjectUnitRecord unit) async {
+    final units = await loadUnits();
+    final updated = [
+      for (final item in units)
+        if (item.id != unit.id) item,
+      unit,
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    await saveUnits(updated);
+  }
+
+  @override
+  Future<void> deleteUnit(String id) async {
+    final units = await loadUnits();
+    await saveUnits(units.where((item) => item.id != id).toList());
   }
 }
 
@@ -94,5 +114,24 @@ class SqliteSubjectUnitsRepository implements SubjectUnitsRepository {
         }
       }
     });
+  }
+
+  @override
+  Future<void> upsertUnit(SubjectUnitRecord unit) async {
+    final db = await _appDatabase.instance;
+    await db.insert('subject_units', {
+      'id': unit.id,
+      'subject_id': unit.subjectId,
+      'name': unit.name,
+      'description': unit.description,
+      'created_at': unit.createdAt.toIso8601String(),
+      'updated_at': unit.updatedAt.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> deleteUnit(String id) async {
+    final db = await _appDatabase.instance;
+    await db.delete('subject_units', where: 'id = ?', whereArgs: [id]);
   }
 }

@@ -39,7 +39,7 @@ class SubjectDecksController extends FamilyAsyncNotifier<List<DeckRecord>, Strin
       ...allDecks,
       deck,
     ];
-    await _repository.saveDecks(updated);
+    await _repository.upsertDeck(deck);
     state = AsyncData(_forSubject(updated, subjectId));
     return deck;
   }
@@ -55,14 +55,14 @@ class SubjectDecksController extends FamilyAsyncNotifier<List<DeckRecord>, Strin
     final updated = allDecks
         .map((item) => item.id == normalized.id ? normalized : item)
         .toList();
-    await _repository.saveDecks(updated);
+    await _repository.upsertDeck(normalized);
     state = AsyncData(_forSubject(updated, arg));
   }
 
   Future<void> deleteDeck(String deckId) async {
     final allDecks = await _repository.loadDecks();
     final updated = allDecks.where((item) => item.id != deckId).toList();
-    await _repository.saveDecks(updated);
+    await _repository.deleteDeck(deckId);
     state = AsyncData(_forSubject(updated, arg));
   }
 

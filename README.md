@@ -17,7 +17,7 @@
     <img src="https://img.shields.io/badge/Content-Markdown%20%7C%20LaTeX-1F2937?style=for-the-badge&labelColor=2D3748" alt="Content: Markdown and LaTeX" />
   </a>
   <a>
-    <img src="https://img.shields.io/badge/Platform-Web%20%7C%20Windows%20%7C%20Android-1F2937?style=for-the-badge&labelColor=2D3748" alt="Platform: Web, Windows, and Android" />
+    <img src="https://img.shields.io/badge/Platform-Web%20%7C%20Windows%20%7C%20Android%20%7C%20Linux-1F2937?style=for-the-badge&labelColor=2D3748" alt="Platform: Web, Windows, Android, and Linux" />
   </a>
   <a>
     <img src="https://img.shields.io/badge/version-0.5.0-blue?style=for-the-badge&labelColor=2D3748" alt="Version: 0.5.0" />
@@ -36,9 +36,9 @@
   </a>
 </p>
 
-> Offline-first Flutter study workspace for notes, flashcards, quizzes, keyword-graded Q&A practice, and local analytics across web, Windows, and Android.
+> Offline-first Flutter study workspace for notes, flashcards, quizzes, keyword-graded Q&A practice, and local analytics across web, Windows, Android, and Linux.
 
-StudyDesk is a local-first study application built for structured learning workflows. Subjects can hold notes, flashcard decks, quizzes, and optional units such as chapters or modules. Content and progress remain on the device by default, with Markdown and LaTeX support for authored material and JSON-based import flows for study packs.
+StudyDesk is a local-first study application built for structured learning workflows. Subjects can hold notes, flashcard decks, quizzes, and optional units such as chapters or modules. Content and progress remain on the device by default, with Markdown and LaTeX support for authored material, JSON-based portability flows for study packs, and local safety snapshots for backup-oriented recovery.
 
 ---
 
@@ -53,6 +53,7 @@ StudyDesk is a local-first study application built for structured learning workf
 - [Installation](#installation)
 - [Platform Compatibility](#platform-compatibility)
 - [Usage](#usage)
+- [Build Artifacts](#build-artifacts)
 - [Technologies Used](#technologies-used)
 - [Security and Data Handling](#security-and-data-handling)
 - [Current Limitations](#current-limitations)
@@ -73,13 +74,15 @@ StudyDesk currently supports a complete local study workflow with the following 
 - Keyword-graded Q&A practice with model answers and threshold-based scoring
 - Markdown and LaTeX rendering in notes, flashcards, and quiz content
 - Local analytics covering activity, streaks, due load, and subject-level progress
-- Local-only persistence across web, Windows, and Android
+- Local-only persistence across web, Windows, Android, and Linux
+- Optional backup-folder snapshots before imports on supported native targets
 
 Persistence is platform-specific but remains local-first:
 
 - Web uses browser-local persistence
 - Windows uses local SQLite-backed persistence
 - Android uses local SQLite-backed persistence
+- Linux uses local SQLite-backed persistence
 
 ---
 
@@ -106,6 +109,7 @@ Persistence is platform-specific but remains local-first:
 - Import Markdown files into a subject
 - Export notes as Markdown files
 - Create flashcard drafts from selected note content
+- Generate note-based Q&A recall quizzes from structured headings
 
 ### Flashcards
 
@@ -129,6 +133,7 @@ Persistence is platform-specific but remains local-first:
 - Run timed quiz sessions with local scoring and review output
 - Use negative marking and skipped-answer handling when needed
 - Support structured Q&A practice alongside objective questions
+- Export quiz definitions, latest attempts, and AI review packages
 
 ### Analytics
 
@@ -144,6 +149,8 @@ Persistence is platform-specific but remains local-first:
 
 - Theme selection
 - Profile and display preferences
+- Data-safety settings for backup folders and import snapshots
+- Gamification visibility toggle
 - Shell layout controls including left-pane behavior
 - About information inside the app
 
@@ -180,6 +187,10 @@ StudyDesk currently supports:
 - Deck JSON import
 - Deck JSON export
 - Quiz JSON import
+- Quiz JSON export
+- Quiz attempt export
+- Subject bundle ZIP export
+- Entire-library, analytics, weak-topics, due-items, and wrong-question exports
 - Subject-level sample import from bundled assets
 - Browser file-picker import
 - Web drag-and-drop JSON import
@@ -195,6 +206,7 @@ Current import behavior:
 - Markdown files create notes inside the selected subject
 - Import validation rejects malformed deck or quiz structures before persistence
 - Short-answer quiz imports validate keyword-grading requirements before save
+- Native targets can write safety snapshots to a user-selected backup folder before imports
 
 Sample study assets are stored in:
 
@@ -277,6 +289,7 @@ Feature areas currently present in the app include:
 - Chrome for web testing
 - Android Studio with Android SDK for Android builds
 - Windows Developer Mode for plugin-enabled Windows desktop builds
+- Linux desktop dependencies when building the Linux target from a Linux environment or WSL
 
 ### Web
 
@@ -314,6 +327,30 @@ flutter build apk
 flutter build appbundle
 ```
 
+To build and copy the APK into the repo artifacts folder:
+
+```powershell
+cd flutter_app
+powershell -ExecutionPolicy Bypass -File .\build_and_package_android_apk.ps1 -Configuration release
+```
+
+### Linux
+
+From a Linux environment such as WSL2 Ubuntu:
+
+```bash
+cd flutter_app
+flutter pub get
+flutter run -d linux
+```
+
+To package a Linux portable bundle from WSL:
+
+```powershell
+cd flutter_app
+powershell -ExecutionPolicy Bypass -File .\build_and_package_linux_portable.ps1
+```
+
 ### Windows Portable Zip
 
 To build and package a portable Windows zip:
@@ -347,6 +384,12 @@ The packaging script resets stale Flutter Windows plugin symlinks before buildin
 - Uses local SQLite-backed persistence
 - Supports file-picker JSON import
 - Requires Android Studio, Android SDK, and a connected device or emulator
+
+### Linux
+
+- Supported through the generated Linux desktop target
+- Uses local SQLite-backed persistence
+- Packaging is handled through the included Linux artifact scripts
 
 ---
 
@@ -392,6 +435,26 @@ The packaging script resets stale Flutter Windows plugin symlinks before buildin
 
 ---
 
+## Build Artifacts
+
+Common build outputs:
+
+- Android release APK: `flutter_app/build/app/outputs/flutter-apk/app-release.apk`
+- Windows portable zip: `flutter_app/artifacts/windows-portable/`
+- Linux portable bundle: `flutter_app/artifacts/linux-portable/`
+- Packaged Android APK copies: `flutter_app/artifacts/android-apk/`
+
+Included packaging helpers:
+
+- `flutter_app/build_and_package_windows_portable.ps1`
+- `flutter_app/package_windows_portable.ps1`
+- `flutter_app/build_and_package_android_apk.ps1`
+- `flutter_app/package_android_apk.ps1`
+- `flutter_app/build_and_package_linux_portable.ps1`
+- `flutter_app/package_linux_portable.ps1`
+
+---
+
 ## Technologies Used
 
 | Category | Technology |
@@ -414,6 +477,7 @@ The packaging script resets stale Flutter Windows plugin symlinks before buildin
 - No account is required for the current core learning flows
 - Import validation is enforced for structured deck and quiz content before persistence
 - Notes, decks, quizzes, and progress remain local unless the user explicitly exports content
+- Native targets can store recovery snapshots in a user-selected backup folder without moving the live database out of app-managed storage
 
 More detail is available in [SECURITY.md](./SECURITY.md).
 
@@ -421,12 +485,12 @@ More detail is available in [SECURITY.md](./SECURITY.md).
 
 ## Current Limitations
 
-- Quiz export is not yet implemented
 - Study data sync across devices is not part of the current local-first build
 - Web persistence is tied to the browser profile and origin
 - Web has drag-and-drop import in addition to file-picker import, while Windows and Android currently use file-picker import only
+- Web does not use a user-selected backup folder because browser storage and download flows are platform constrained
 - The app is still in active alpha, so schema evolution and content-portability workflows are still being hardened
-- Broader platform support beyond the current web, Windows, and Android focus is not yet documented here
+- Note export is currently Markdown-first; richer document export formats are still to come
 
 ---
 

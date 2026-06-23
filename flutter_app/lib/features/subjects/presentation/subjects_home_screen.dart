@@ -139,7 +139,7 @@ class _SubjectsHomeContent extends ConsumerWidget {
                             deckCount: metrics?.deckCount ?? 0,
                             cardsCount: metrics?.cardsCount ?? 0,
                             reviewedToday: metrics?.reviewedToday ?? 0,
-                            onOpen: () => context.go('/subjects/${subject.id}'),
+                            onOpen: () => context.push('/subjects/${subject.id}'),
                             onEdit: () => _openEditSheet(context, ref, subject),
                             onDelete: () => _confirmDelete(context, ref, subject),
                           );

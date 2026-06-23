@@ -45,23 +45,23 @@ class DeckCardsController extends FamilyAsyncNotifier<List<CardRecord>, String> 
         lastReviewedAt: null,
         createdAt: now,
         updatedAt: now,
-      ),
+        ),
     ];
-    await _repository.saveCards(updated);
+    await _repository.upsertCard(updated.last);
     state = AsyncData(_forDeck(updated, deckId));
   }
 
   Future<void> updateCard(CardRecord card) async {
     final allCards = await _repository.loadCards();
     final updated = allCards.map((item) => item.id == card.id ? card : item).toList();
-    await _repository.saveCards(updated);
+    await _repository.upsertCard(card);
     state = AsyncData(_forDeck(updated, arg));
   }
 
   Future<void> deleteCard(String cardId) async {
     final allCards = await _repository.loadCards();
     final updated = allCards.where((item) => item.id != cardId).toList();
-    await _repository.saveCards(updated);
+    await _repository.deleteCard(cardId);
     state = AsyncData(_forDeck(updated, arg));
   }
 

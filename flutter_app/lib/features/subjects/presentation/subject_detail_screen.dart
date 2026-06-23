@@ -1,12 +1,16 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/settings/profile_settings_controller.dart';
 import '../../../core/widgets/json_drop_zone.dart';
 import '../../../services/content_portability_service.dart';
+import '../../../services/export_file_service.dart';
+import '../../../services/library_backup_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../dashboard/application/dashboard_summary_provider.dart';
@@ -138,8 +142,9 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                         onImportJson: _pickAndImportJson,
                         onImportDroppedJson: _importDroppedJson,
                         onImportSample: _openSampleImporter,
-                        onOpenNotes: () => context.go('/subjects/${subject.id}/notes'),
+                        onOpenNotes: () => context.push('/subjects/${subject.id}/notes'),
                         onCreateNote: _createQuickNote,
+                        onExportBundle: _exportSubjectBundle,
                       ),
                     ),
                   ),
@@ -228,7 +233,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                       child: _SectionHeader(
                         title: 'Notes',
                         actionLabel: 'Open Notes',
-                        onAction: () => context.go('/subjects/${subject.id}/notes'),
+                        onAction: () => context.push('/subjects/${subject.id}/notes'),
                       ),
                     ),
                   ),
@@ -243,7 +248,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                       child: _NotesOverviewCard(
                         notes: filteredNotes,
                         activeScopeLabel: _scopeLabel(unitItems),
-                        onOpenWorkspace: () => context.go('/subjects/${subject.id}/notes'),
+                        onOpenWorkspace: () => context.push('/subjects/${subject.id}/notes'),
                         onCreateNote: _createQuickNote,
                       ),
                     ),
@@ -291,7 +296,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                                 return DeckCard(
                                   deck: deck,
                                   unitName: _unitName(unitItems, deck.unitId),
-                                  onOpen: () => context.go(
+                                  onOpen: () => context.push(
                                     '/subjects/${subject.id}/decks/${deck.id}',
                                   ),
                                   onEdit: () => _openEditDeck(context, deck, unitItems),
@@ -341,7 +346,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                                 return QuizCard(
                                   quiz: quiz,
                                   unitName: _unitName(unitItems, quiz.unitId),
-                                  onOpen: () => context.go(
+                                  onOpen: () => context.push(
                                     '/subjects/${subject.id}/quizzes/${quiz.id}',
                                   ),
                                   onDelete: () => _confirmDeleteQuiz(context, quiz),
@@ -489,9 +494,27 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
       if (!mounted) {
         return;
       }
-      context.go('/subjects/${subject.id}/notes/${note.id}');
+      context.push('/subjects/${subject.id}/notes/${note.id}');
     } catch (error) {
       _showSnackBar('Could not create note: $error');
+    }
+  }
+
+  Future<void> _exportSubjectBundle() async {
+    try {
+      final bytes = await ref
+          .read(contentPortabilityServiceProvider)
+          .exportSubjectBundleZip(subjectId: subject.id);
+      final savedPath = await ref.read(exportFileServiceProvider).saveZip(
+            fileName: '${subject.name}_subject_bundle',
+            bytes: bytes,
+          );
+      if (!mounted || savedPath == null) {
+        return;
+      }
+      _showSnackBar('Subject bundle exported to $savedPath');
+    } catch (error) {
+      _showSnackBar('Could not export subject bundle: $error');
     }
   }
 
@@ -886,6 +909,9 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     }
 
     try {
+      await _maybeCreateSafetySnapshot(
+        choice.contains('sample_quiz') ? 'sample-quiz-import' : 'sample-deck-import',
+      );
       if (choice.contains('sample_quiz')) {
         final result = await ref
             .read(contentPortabilityServiceProvider)
@@ -966,6 +992,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     List<int> bytes, {
     required String sourceLabel,
   }) async {
+    await _maybeCreateSafetySnapshot('json-import');
     final jsonSource = utf8.decode(bytes);
     final result = await ref
         .read(contentPortabilityServiceProvider)
@@ -991,6 +1018,17 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
       'Imported ${result.name} from $sourceLabel with ${result.itemCount} $importedLabel.',
     );
   }
+
+  Future<void> _maybeCreateSafetySnapshot(String reason) async {
+    final settings = ref.read(profileSettingsControllerProvider);
+    if (!settings.autoBackupBeforeImports) {
+      return;
+    }
+    await ref.read(libraryBackupServiceProvider).createSafetySnapshot(
+          reason: reason,
+          interactiveFallback: false,
+        );
+  }
 }
 
 class _SubjectHero extends StatelessWidget {
@@ -1006,6 +1044,7 @@ class _SubjectHero extends StatelessWidget {
     required this.onImportSample,
     required this.onOpenNotes,
     required this.onCreateNote,
+    required this.onExportBundle,
   });
 
   final SubjectRecord subject;
@@ -1019,6 +1058,7 @@ class _SubjectHero extends StatelessWidget {
   final VoidCallback onImportSample;
   final VoidCallback onOpenNotes;
   final VoidCallback onCreateNote;
+  final VoidCallback onExportBundle;
 
   @override
   Widget build(BuildContext context) {
@@ -1080,10 +1120,17 @@ class _SubjectHero extends StatelessWidget {
                 icon: const Icon(Icons.download_rounded),
                 label: const Text('Import Sample'),
               ),
+              FilledButton.tonalIcon(
+                onPressed: onExportBundle,
+                icon: const Icon(Icons.archive_rounded),
+                label: const Text('Export Bundle'),
+              ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          JsonDropZone(onFileDropped: onImportDroppedJson),
+          if (kIsWeb) ...[
+            const SizedBox(height: AppSpacing.md),
+            JsonDropZone(onFileDropped: onImportDroppedJson),
+          ],
         ],
       ),
     );

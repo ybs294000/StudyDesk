@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/deck_record.dart';
@@ -12,6 +13,8 @@ const _decksStorageKey = 'decks_v1';
 abstract class DecksRepository {
   Future<List<DeckRecord>> loadDecks();
   Future<void> saveDecks(List<DeckRecord> decks);
+  Future<void> upsertDeck(DeckRecord deck);
+  Future<void> deleteDeck(String id);
 }
 
 final decksRepositoryProvider = Provider<DecksRepository>((ref) {
@@ -35,6 +38,23 @@ class SharedPreferencesDecksRepository implements DecksRepository {
     final prefs = await SharedPreferences.getInstance();
     final payload = decks.map((deck) => deck.toJson()).toList();
     await prefs.setStringList(_decksStorageKey, payload);
+  }
+
+  @override
+  Future<void> upsertDeck(DeckRecord deck) async {
+    final decks = await loadDecks();
+    final updated = [
+      for (final item in decks)
+        if (item.id != deck.id) item,
+      deck,
+    ]..sort((a, b) => a.updatedAt.compareTo(b.updatedAt) * -1);
+    await saveDecks(updated);
+  }
+
+  @override
+  Future<void> deleteDeck(String id) async {
+    final decks = await loadDecks();
+    await saveDecks(decks.where((item) => item.id != id).toList());
   }
 }
 
@@ -99,5 +119,26 @@ class SqliteDecksRepository implements DecksRepository {
         }
       }
     });
+  }
+
+  @override
+  Future<void> upsertDeck(DeckRecord deck) async {
+    final db = await _appDatabase.instance;
+    await db.insert('decks', {
+      'id': deck.id,
+      'subject_id': deck.subjectId,
+      'unit_id': deck.unitId,
+      'name': deck.name,
+      'description': deck.description,
+      'tags_json': jsonEncode(deck.tags),
+      'created_at': deck.createdAt.toIso8601String(),
+      'updated_at': deck.updatedAt.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> deleteDeck(String id) async {
+    final db = await _appDatabase.instance;
+    await db.delete('decks', where: 'id = ?', whereArgs: [id]);
   }
 }

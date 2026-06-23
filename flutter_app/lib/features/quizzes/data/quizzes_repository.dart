@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/quiz_models.dart';
@@ -12,6 +13,8 @@ const _quizzesStorageKey = 'quizzes_v1';
 abstract class QuizzesRepository {
   Future<List<QuizRecord>> loadQuizzes();
   Future<void> saveQuizzes(List<QuizRecord> quizzes);
+  Future<void> upsertQuiz(QuizRecord quiz);
+  Future<void> deleteQuiz(String id);
 }
 
 final quizzesRepositoryProvider = Provider<QuizzesRepository>((ref) {
@@ -37,6 +40,23 @@ class SharedPreferencesQuizzesRepository implements QuizzesRepository {
       _quizzesStorageKey,
       quizzes.map((quiz) => quiz.toJson()).toList(),
     );
+  }
+
+  @override
+  Future<void> upsertQuiz(QuizRecord quiz) async {
+    final quizzes = await loadQuizzes();
+    final updated = [
+      for (final item in quizzes)
+        if (item.id != quiz.id) item,
+      quiz,
+    ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    await saveQuizzes(updated);
+  }
+
+  @override
+  Future<void> deleteQuiz(String id) async {
+    final quizzes = await loadQuizzes();
+    await saveQuizzes(quizzes.where((item) => item.id != id).toList());
   }
 }
 
@@ -113,5 +133,30 @@ class SqliteQuizzesRepository implements QuizzesRepository {
         }
       }
     });
+  }
+
+  @override
+  Future<void> upsertQuiz(QuizRecord quiz) async {
+    final db = await _appDatabase.instance;
+    await db.insert('quizzes', {
+      'id': quiz.id,
+      'subject_id': quiz.subjectId,
+      'unit_id': quiz.unitId,
+      'name': quiz.name,
+      'description': quiz.description,
+      'tags_json': jsonEncode(quiz.tags),
+      'settings_json': jsonEncode(quiz.settings.toMap()),
+      'questions_json': jsonEncode(
+        quiz.questions.map((q) => q.toMap()).toList(),
+      ),
+      'created_at': quiz.createdAt.toIso8601String(),
+      'updated_at': quiz.updatedAt.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> deleteQuiz(String id) async {
+    final db = await _appDatabase.instance;
+    await db.delete('quizzes', where: 'id = ?', whereArgs: [id]);
   }
 }

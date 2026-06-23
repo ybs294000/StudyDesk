@@ -446,4 +446,38 @@ class QuizAttemptRecord {
   final double? keywordScorePercent;
   final int wordCount;
   final bool meetsWordCount;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'questionId': questionId,
+      'questionType': questionType.storageValue,
+      'answer': answer,
+      'isCorrect': isCorrect,
+      'pointsEarned': pointsEarned,
+      'maxPoints': maxPoints,
+      'matchedKeywords': matchedKeywords,
+      'missingKeywords': missingKeywords,
+      'keywordScorePercent': keywordScorePercent,
+      'wordCount': wordCount,
+      'meetsWordCount': meetsWordCount,
+    };
+  }
+
+  factory QuizAttemptRecord.fromMap(Map<String, dynamic> map) {
+    return QuizAttemptRecord(
+      questionId: map['questionId'] as String,
+      questionType: QuizQuestionTypeX.fromStorage(
+        (map['questionType'] as String?) ?? 'mcq',
+      ),
+      answer: (map['answer'] as String?) ?? '',
+      isCorrect: (map['isCorrect'] as bool?) ?? false,
+      pointsEarned: ((map['pointsEarned'] as num?) ?? 0).toDouble(),
+      maxPoints: ((map['maxPoints'] as num?) ?? 0).toDouble(),
+      matchedKeywords: ((map['matchedKeywords'] as List?) ?? const []).cast<String>(),
+      missingKeywords: ((map['missingKeywords'] as List?) ?? const []).cast<String>(),
+      keywordScorePercent: (map['keywordScorePercent'] as num?)?.toDouble(),
+      wordCount: (map['wordCount'] as int?) ?? 0,
+      meetsWordCount: (map['meetsWordCount'] as bool?) ?? true,
+    );
+  }
 }

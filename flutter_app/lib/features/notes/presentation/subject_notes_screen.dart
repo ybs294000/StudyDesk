@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/settings/profile_settings_controller.dart';
 import '../../../core/widgets/markdown_content.dart';
+import '../../../services/library_backup_service.dart';
 import '../../../theme/app_spacing.dart';
 import '../../subjects/application/subjects_controller.dart';
 import '../../subjects/domain/subject_record.dart';
@@ -255,6 +257,7 @@ class _SubjectNotesScreenState extends ConsumerState<SubjectNotesScreen> {
         throw const FormatException('The selected Markdown file could not be read.');
       }
       final markdown = utf8.decode(bytes);
+      await _maybeCreateSafetySnapshot('markdown-note-import');
       final imported = await ref
           .read(subjectNotesControllerProvider(widget.subjectId).notifier)
           .importMarkdownNote(
@@ -274,6 +277,17 @@ class _SubjectNotesScreenState extends ConsumerState<SubjectNotesScreen> {
     } catch (error) {
       _showMessage('Markdown import failed: $error');
     }
+  }
+
+  Future<void> _maybeCreateSafetySnapshot(String reason) async {
+    final settings = ref.read(profileSettingsControllerProvider);
+    if (!settings.autoBackupBeforeImports) {
+      return;
+    }
+    await ref.read(libraryBackupServiceProvider).createSafetySnapshot(
+          reason: reason,
+          interactiveFallback: false,
+        );
   }
 
   String? _defaultUnitIdForCreate() {
@@ -317,7 +331,7 @@ class _SubjectNotesScreenState extends ConsumerState<SubjectNotesScreen> {
     if (!mounted) {
       return;
     }
-    context.go('/subjects/${widget.subjectId}/notes/$noteId');
+    context.push('/subjects/${widget.subjectId}/notes/$noteId');
   }
 
   void _showMessage(String message) {

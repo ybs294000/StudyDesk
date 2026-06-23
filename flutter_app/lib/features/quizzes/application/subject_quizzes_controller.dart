@@ -38,14 +38,14 @@ class SubjectQuizzesController extends FamilyAsyncNotifier<List<QuizRecord>, Str
         if (item.id != normalized.id) item,
       normalized,
     ];
-    await _repository.saveQuizzes(updated);
+    await _repository.upsertQuiz(normalized);
     state = AsyncData(_forSubject(updated, arg));
   }
 
   Future<void> deleteQuiz(String quizId) async {
     final allQuizzes = await _repository.loadQuizzes();
     final updated = allQuizzes.where((quiz) => quiz.id != quizId).toList();
-    await _repository.saveQuizzes(updated);
+    await _repository.deleteQuiz(quizId);
     state = AsyncData(_forSubject(updated, arg));
   }
 

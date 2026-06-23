@@ -67,7 +67,7 @@ class AppBootstrapService {
       updatedAt: now,
     );
 
-    await subjectsRepository.saveSubjects([starterSubject]);
+    await subjectsRepository.upsertSubject(starterSubject);
 
     for (final asset in _starterDeckAssets) {
       await portabilityService.importDeckAsset(

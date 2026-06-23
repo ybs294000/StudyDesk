@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -10,11 +11,21 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../features/cards/domain/card_record.dart';
 import '../../features/decks/domain/deck_record.dart';
+import '../../features/notes/domain/note_record.dart';
+import '../../features/quizzes/domain/quiz_attempt_session_record.dart';
+import '../../features/quizzes/domain/quiz_models.dart';
+import '../../features/study/domain/study_session_record.dart';
 import '../../features/subjects/domain/subject_record.dart';
+import '../../features/units/domain/subject_unit_record.dart';
 
 const _legacySubjectsStorageKey = 'subjects_v1';
 const _legacyDecksStorageKey = 'decks_v1';
 const _legacyCardsStorageKey = 'cards_v1';
+const _legacyQuizzesStorageKey = 'quizzes_v1';
+const _legacyNotesStorageKey = 'notes_v1';
+const _legacySubjectUnitsStorageKey = 'subject_units_v1';
+const _legacyStudySessionsStorageKey = 'study_sessions_v1';
+const _legacyQuizAttemptsStorageKey = 'quiz_attempt_sessions_v1';
 const _migrationFlagKey = 'sqlite_content_migrated_v1';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -48,10 +59,11 @@ class AppDatabase {
     final factory = _createDatabaseFactory();
     final databasesPath = await _resolveDatabaseDirectory(factory);
     final path = p.join(databasesPath, 'studydesk.db');
+    await _createPreflightBackupIfNeeded(path);
     final database = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 7,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON');
         },
@@ -73,6 +85,9 @@ class AppDatabase {
           }
           if (oldVersion < 6) {
             await _upgradeToV6(db);
+          }
+          if (oldVersion < 7) {
+            await _upgradeToV7(db);
           }
         },
       ),
@@ -116,6 +131,28 @@ class AppDatabase {
       Directory(newDirectory).createSync(recursive: true);
     }
     await legacyFile.copy(newPath);
+  }
+
+  Future<void> _createPreflightBackupIfNeeded(String databasePath) async {
+    final databaseFile = File(databasePath);
+    if (!databaseFile.existsSync()) {
+      return;
+    }
+
+    final lastModified = databaseFile.lastModifiedSync().millisecondsSinceEpoch;
+    final backupsDirectory = Directory(p.join(p.dirname(databasePath), 'backups'));
+    if (!backupsDirectory.existsSync()) {
+      backupsDirectory.createSync(recursive: true);
+    }
+
+    final backupFile = File(
+      p.join(backupsDirectory.path, 'studydesk-preopen-$lastModified.db'),
+    );
+    if (backupFile.existsSync()) {
+      return;
+    }
+
+    await databaseFile.copy(backupFile.path);
   }
 
   DatabaseFactory _createDatabaseFactory() {
@@ -254,6 +291,45 @@ class AppDatabase {
     await db.execute(
       'CREATE INDEX idx_study_sessions_subject_id ON study_sessions(subject_id)',
     );
+    await db.execute('''
+      CREATE TABLE quiz_attempt_sessions (
+        id TEXT PRIMARY KEY,
+        quiz_id TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        unit_id TEXT,
+        quiz_name TEXT NOT NULL,
+        quiz_description TEXT NOT NULL DEFAULT '',
+        quiz_tags_json TEXT NOT NULL DEFAULT '[]',
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'practice',
+        total_questions INTEGER NOT NULL,
+        attempted_questions INTEGER NOT NULL,
+        correct_count INTEGER NOT NULL,
+        wrong_count INTEGER NOT NULL,
+        skipped_count INTEGER NOT NULL,
+        raw_score REAL NOT NULL,
+        max_score REAL NOT NULL,
+        score_percent REAL NOT NULL,
+        passing_score_percent INTEGER,
+        passed INTEGER,
+        weak_tags_json TEXT NOT NULL DEFAULT '[]',
+        strong_tags_json TEXT NOT NULL DEFAULT '[]',
+        items_json TEXT NOT NULL,
+        FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+        FOREIGN KEY(quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+        FOREIGN KEY(unit_id) REFERENCES subject_units(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_quiz_attempt_sessions_quiz_id ON quiz_attempt_sessions(quiz_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_quiz_attempt_sessions_subject_id ON quiz_attempt_sessions(subject_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_quiz_attempt_sessions_started_at ON quiz_attempt_sessions(started_at)',
+    );
   }
 
   Future<void> _upgradeToV2(Database db) async {
@@ -383,6 +459,48 @@ class AppDatabase {
     );
   }
 
+  Future<void> _upgradeToV7(Database db) async {
+    await db.execute('''
+      CREATE TABLE quiz_attempt_sessions (
+        id TEXT PRIMARY KEY,
+        quiz_id TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        unit_id TEXT,
+        quiz_name TEXT NOT NULL,
+        quiz_description TEXT NOT NULL DEFAULT '',
+        quiz_tags_json TEXT NOT NULL DEFAULT '[]',
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'practice',
+        total_questions INTEGER NOT NULL,
+        attempted_questions INTEGER NOT NULL,
+        correct_count INTEGER NOT NULL,
+        wrong_count INTEGER NOT NULL,
+        skipped_count INTEGER NOT NULL,
+        raw_score REAL NOT NULL,
+        max_score REAL NOT NULL,
+        score_percent REAL NOT NULL,
+        passing_score_percent INTEGER,
+        passed INTEGER,
+        weak_tags_json TEXT NOT NULL DEFAULT '[]',
+        strong_tags_json TEXT NOT NULL DEFAULT '[]',
+        items_json TEXT NOT NULL,
+        FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+        FOREIGN KEY(quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+        FOREIGN KEY(unit_id) REFERENCES subject_units(id) ON DELETE SET NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quiz_attempt_sessions_quiz_id ON quiz_attempt_sessions(quiz_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quiz_attempt_sessions_subject_id ON quiz_attempt_sessions(subject_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_quiz_attempt_sessions_started_at ON quiz_attempt_sessions(started_at)',
+    );
+  }
+
   Future<void> _migrateLegacySharedPreferences(Database db) async {
     final prefs = await SharedPreferences.getInstance();
     final didMigrate = prefs.getBool(_migrationFlagKey) ?? false;
@@ -393,8 +511,27 @@ class AppDatabase {
         Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM decks')) ?? 0;
     final existingCards =
         Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM cards')) ?? 0;
+    final existingQuizzes =
+        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM quizzes')) ?? 0;
+    final existingNotes =
+        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM notes')) ?? 0;
+    final existingUnits =
+        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM subject_units')) ?? 0;
+    final existingSessions =
+        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM study_sessions')) ?? 0;
+    final existingAttempts = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM quiz_attempt_sessions'),
+        ) ??
+        0;
     final databaseHasContent =
-        existingSubjects > 0 || existingDecks > 0 || existingCards > 0;
+        existingSubjects > 0 ||
+        existingDecks > 0 ||
+        existingCards > 0 ||
+        existingQuizzes > 0 ||
+        existingNotes > 0 ||
+        existingUnits > 0 ||
+        existingSessions > 0 ||
+        existingAttempts > 0;
 
     if (didMigrate || databaseHasContent) {
       return;
@@ -403,10 +540,20 @@ class AppDatabase {
     final rawSubjects = prefs.getStringList(_legacySubjectsStorageKey) ?? const [];
     final rawDecks = prefs.getStringList(_legacyDecksStorageKey) ?? const [];
     final rawCards = prefs.getStringList(_legacyCardsStorageKey) ?? const [];
+    final rawQuizzes = prefs.getStringList(_legacyQuizzesStorageKey) ?? const [];
+    final rawNotes = prefs.getStringList(_legacyNotesStorageKey) ?? const [];
+    final rawUnits = prefs.getStringList(_legacySubjectUnitsStorageKey) ?? const [];
+    final rawSessions = prefs.getStringList(_legacyStudySessionsStorageKey) ?? const [];
+    final rawAttempts = prefs.getStringList(_legacyQuizAttemptsStorageKey) ?? const [];
 
     final subjects = rawSubjects.map(SubjectRecord.fromJson).toList();
     final decks = rawDecks.map(DeckRecord.fromJson).toList();
     final cards = rawCards.map(CardRecord.fromJson).toList();
+    final quizzes = rawQuizzes.map(QuizRecord.fromJson).toList();
+    final notes = rawNotes.map(NoteRecord.fromJson).toList();
+    final units = rawUnits.map(SubjectUnitRecord.fromJson).toList();
+    final sessions = rawSessions.map(StudySessionRecord.fromJson).toList();
+    final attempts = rawAttempts.map(QuizAttemptSessionRecord.fromJson).toList();
 
     await db.transaction((txn) async {
       for (final subject in subjects) {
@@ -424,8 +571,10 @@ class AppDatabase {
         await txn.insert('decks', {
           'id': deck.id,
           'subject_id': deck.subjectId,
+          'unit_id': deck.unitId,
           'name': deck.name,
           'description': deck.description,
+          'tags_json': jsonEncode(deck.tags),
           'created_at': deck.createdAt.toIso8601String(),
           'updated_at': deck.updatedAt.toIso8601String(),
         });
@@ -451,6 +600,88 @@ class AppDatabase {
           'created_at': card.createdAt.toIso8601String(),
           'updated_at': card.updatedAt.toIso8601String(),
         });
+      }
+
+      for (final unit in units) {
+        await txn.insert('subject_units', {
+          'id': unit.id,
+          'subject_id': unit.subjectId,
+          'name': unit.name,
+          'description': unit.description,
+          'created_at': unit.createdAt.toIso8601String(),
+          'updated_at': unit.updatedAt.toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+
+      for (final note in notes) {
+        await txn.insert('notes', {
+          'id': note.id,
+          'subject_id': note.subjectId,
+          'unit_id': note.unitId,
+          'title': note.title,
+          'body_markdown': note.bodyMarkdown,
+          'tags_json': jsonEncode(note.tags),
+          'created_at': note.createdAt.toIso8601String(),
+          'updated_at': note.updatedAt.toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+
+      for (final quiz in quizzes) {
+        await txn.insert('quizzes', {
+          'id': quiz.id,
+          'subject_id': quiz.subjectId,
+          'unit_id': quiz.unitId,
+          'name': quiz.name,
+          'description': quiz.description,
+          'tags_json': jsonEncode(quiz.tags),
+          'settings_json': jsonEncode(quiz.settings.toMap()),
+          'questions_json': jsonEncode(quiz.questions.map((item) => item.toMap()).toList()),
+          'created_at': quiz.createdAt.toIso8601String(),
+          'updated_at': quiz.updatedAt.toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+
+      for (final session in sessions) {
+        await txn.insert('study_sessions', {
+          'id': session.id,
+          'subject_id': session.subjectId,
+          'deck_id': session.deckId,
+          'session_type': session.sessionType,
+          'started_at': session.startedAt.toIso8601String(),
+          'ended_at': session.endedAt.toIso8601String(),
+          'reviewed_count': session.reviewedCount,
+          'completed_count': session.completedCount,
+          'again_count': session.againCount,
+          'due_count': session.dueCount,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+
+      for (final attempt in attempts) {
+        await txn.insert('quiz_attempt_sessions', {
+          'id': attempt.id,
+          'quiz_id': attempt.quizId,
+          'subject_id': attempt.subjectId,
+          'unit_id': attempt.unitId,
+          'quiz_name': attempt.quizName,
+          'quiz_description': attempt.quizDescription,
+          'quiz_tags_json': jsonEncode(attempt.quizTags),
+          'started_at': attempt.startedAt.toIso8601String(),
+          'ended_at': attempt.endedAt.toIso8601String(),
+          'mode': attempt.mode,
+          'total_questions': attempt.totalQuestions,
+          'attempted_questions': attempt.attemptedQuestions,
+          'correct_count': attempt.correctCount,
+          'wrong_count': attempt.wrongCount,
+          'skipped_count': attempt.skippedCount,
+          'raw_score': attempt.rawScore,
+          'max_score': attempt.maxScore,
+          'score_percent': attempt.scorePercent,
+          'passing_score_percent': attempt.passingScorePercent,
+          'passed': attempt.passed == null ? null : (attempt.passed! ? 1 : 0),
+          'weak_tags_json': jsonEncode(attempt.weakTags),
+          'strong_tags_json': jsonEncode(attempt.strongTags),
+          'items_json': jsonEncode(attempt.items.map((item) => item.toMap()).toList()),
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
     });
 

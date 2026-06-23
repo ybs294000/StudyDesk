@@ -320,7 +320,7 @@ class _DeckLibraryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => context.go(
+                    onPressed: () => context.push(
                       '/subjects/${summary.subject.id}/decks/${summary.deck.id}',
                     ),
                     child: const Text('Open'),
@@ -331,7 +331,7 @@ class _DeckLibraryCard extends StatelessWidget {
                   child: FilledButton(
                     onPressed: summary.cardCount == 0
                         ? null
-                        : () => context.go(
+                        : () => context.push(
                               '/subjects/${summary.subject.id}/decks/${summary.deck.id}/study?deckName=${Uri.encodeComponent(summary.deck.name)}',
                             ),
                     child: const Text('Study'),

@@ -50,6 +50,7 @@ class AppShell extends ConsumerWidget {
     final isSidebarVisible = ref.watch(shellLayoutControllerProvider);
     final selectedIndex = _selectedIndexForPath(currentPath);
     final destination = _destinations[selectedIndex];
+    final canNavigateBack = !isWide && GoRouter.of(context).canPop();
 
     return Scaffold(
       body: SafeArea(
@@ -102,6 +103,15 @@ class AppShell extends ConsumerWidget {
                                       ? Icons.menu_open_rounded
                                       : Icons.menu_rounded,
                                 ),
+                                ),
+                              ),
+                          if (canNavigateBack)
+                            Padding(
+                              padding: const EdgeInsets.only(right: AppSpacing.sm),
+                              child: IconButton(
+                                tooltip: 'Back',
+                                onPressed: () => context.pop(),
+                                icon: const Icon(Icons.arrow_back_rounded),
                               ),
                             ),
                           Expanded(
@@ -123,7 +133,7 @@ class AppShell extends ConsumerWidget {
                           ),
                         ),
                         FilledButton.tonalIcon(
-                          onPressed: () => _onDestinationSelected(context, 4),
+                          onPressed: () => _openControls(context),
                           icon: const Icon(Icons.tune_rounded),
                           label: const Text('Controls'),
                         ),
@@ -171,6 +181,13 @@ class AppShell extends ConsumerWidget {
     if (route != currentPath) {
       GoRouter.of(context).go(route);
     }
+  }
+
+  void _openControls(BuildContext context) {
+    if (currentPath == '/settings') {
+      return;
+    }
+    context.push('/settings');
   }
 }
 

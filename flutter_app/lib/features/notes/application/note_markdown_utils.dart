@@ -22,6 +22,18 @@ class NoteLinkMatch {
   final String label;
 }
 
+class NoteSection {
+  const NoteSection({
+    required this.heading,
+    required this.level,
+    required this.bodyMarkdown,
+  });
+
+  final String heading;
+  final int level;
+  final String bodyMarkdown;
+}
+
 final _wikiLinkPattern = RegExp(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]');
 
 List<NoteHeading> extractHeadings(String markdown) {
@@ -45,6 +57,75 @@ List<NoteHeading> extractHeadings(String markdown) {
     );
   }
   return headings;
+}
+
+int resolveSectionHeadingLevel(String markdown) {
+  final override = _frontmatterSectionLevel(markdown);
+  if (override != null) {
+    return override;
+  }
+
+  final headings = extractHeadings(markdown);
+  if (headings.isEmpty) {
+    return 2;
+  }
+
+  final counts = <int, int>{};
+  for (final heading in headings) {
+    counts.update(heading.level, (value) => value + 1, ifAbsent: () => 1);
+  }
+  final ranked = counts.entries.toList()
+    ..sort((a, b) {
+      final countComparison = b.value.compareTo(a.value);
+      if (countComparison != 0) {
+        return countComparison;
+      }
+      return a.key.compareTo(b.key);
+    });
+  return ranked.first.key;
+}
+
+List<NoteSection> extractSections(String markdown) {
+  final headings = extractHeadings(markdown);
+  if (headings.isEmpty) {
+    return const [];
+  }
+
+  final lines = markdown.split('\n');
+  final sectionLevel = resolveSectionHeadingLevel(markdown);
+  final sections = <NoteSection>[];
+
+  for (var index = 0; index < headings.length; index += 1) {
+    final heading = headings[index];
+    if (heading.level != sectionLevel) {
+      continue;
+    }
+
+    var endLineIndex = lines.length;
+    for (var nextIndex = index + 1; nextIndex < headings.length; nextIndex += 1) {
+      final nextHeading = headings[nextIndex];
+      if (nextHeading.level <= sectionLevel) {
+        endLineIndex = nextHeading.lineIndex;
+        break;
+      }
+    }
+
+    final bodyLines = lines.sublist(heading.lineIndex + 1, endLineIndex);
+    final body = bodyLines.join('\n').trim();
+    if (body.isEmpty) {
+      continue;
+    }
+
+    sections.add(
+      NoteSection(
+        heading: heading.text,
+        level: heading.level,
+        bodyMarkdown: body,
+      ),
+    );
+  }
+
+  return sections;
 }
 
 List<NoteLinkMatch> extractWikiLinks(String markdown) {
@@ -148,4 +229,82 @@ List<String> normalizeTags(Iterable<String> tags) {
     }
   }
   return normalized;
+}
+
+List<String> deriveKeywordsFromMarkdown(
+  String markdown, {
+  int maxKeywords = 6,
+}) {
+  const stopWords = {
+    'a',
+    'an',
+    'and',
+    'are',
+    'as',
+    'at',
+    'be',
+    'by',
+    'for',
+    'from',
+    'has',
+    'in',
+    'is',
+    'it',
+    'of',
+    'on',
+    'or',
+    'that',
+    'the',
+    'to',
+    'was',
+    'were',
+    'with',
+  };
+
+  final normalized = markdown
+      .toLowerCase()
+      .replaceAll(RegExp(r'[`*_>#\-\[\]\(\)\.,:;!?/\\]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (normalized.isEmpty) {
+    return const [];
+  }
+
+  final counts = <String, int>{};
+  for (final word in normalized.split(' ')) {
+    if (word.length < 4 || stopWords.contains(word)) {
+      continue;
+    }
+    counts.update(word, (value) => value + 1, ifAbsent: () => 1);
+  }
+
+  final ranked = counts.entries.toList()
+    ..sort((a, b) {
+      final countComparison = b.value.compareTo(a.value);
+      if (countComparison != 0) {
+        return countComparison;
+      }
+      return a.key.compareTo(b.key);
+    });
+  return ranked.take(maxKeywords).map((entry) => entry.key).toList();
+}
+
+int? _frontmatterSectionLevel(String markdown) {
+  final lines = markdown.split('\n');
+  if (lines.length < 3 || lines.first.trim() != '---') {
+    return null;
+  }
+
+  for (var index = 1; index < lines.length; index += 1) {
+    final line = lines[index].trim();
+    if (line == '---') {
+      break;
+    }
+    final match = RegExp(r'^section-level:\s*h([1-6])$', caseSensitive: false)
+        .firstMatch(line);
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+  }
+  return null;
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../services/export_file_service.dart';
 import '../../dashboard/application/dashboard_summary_provider.dart';
 import '../../../services/content_portability_service.dart';
 import '../../../theme/app_colors.dart';
@@ -82,7 +82,7 @@ class _DeckDetailContent extends ConsumerWidget {
                 onExportDeck: () => _showExportJson(context, ref, items),
                 onStartStudy: items.isEmpty
                     ? null
-                    : () => context.go(
+                    : () => context.push(
                           '/subjects/$subjectId/decks/${deck.id}/study?deckName=${Uri.encodeComponent(deck.name)}',
                         ),
                 dueCount: _dueCount(items),
@@ -260,45 +260,17 @@ class _DeckDetailContent extends ConsumerWidget {
         deck: deck,
         cards: cards,
       );
-      if (!context.mounted) {
+      final savedPath = await ref.read(exportFileServiceProvider).saveJson(
+            fileName: '${deck.name}_deck_export',
+            json: json,
+          );
+      if (!context.mounted || savedPath == null) {
         return;
       }
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Export Deck JSON'),
-          content: SizedBox(
-            width: 640,
-            child: SingleChildScrollView(
-              child: SelectableText(json),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                try {
-                  await Clipboard.setData(ClipboardData(text: json));
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Deck JSON copied to clipboard.')),
-                    );
-                  }
-                } catch (error) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not copy JSON: $error')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Copy JSON'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deck exported to $savedPath'),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (error) {

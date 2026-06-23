@@ -217,7 +217,7 @@ class _StudyDeckCard extends StatelessWidget {
                   child: FilledButton(
                     onPressed: deck.cardCount == 0
                         ? null
-                        : () => context.go(
+                        : () => context.push(
                               '/subjects/${deck.subject.id}/decks/${deck.deck.id}/study?deckName=${Uri.encodeComponent(deck.deck.name)}',
                             ),
                     child: const Text('Start Study'),
@@ -225,7 +225,7 @@ class _StudyDeckCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 OutlinedButton(
-                  onPressed: () => context.go(
+                  onPressed: () => context.push(
                     '/subjects/${deck.subject.id}/decks/${deck.deck.id}',
                   ),
                   child: const Text('Open'),

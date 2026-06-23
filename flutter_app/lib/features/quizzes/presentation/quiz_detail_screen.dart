@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/markdown_content.dart';
+import '../../../services/content_portability_service.dart';
+import '../../../services/export_file_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../units/application/subject_units_controller.dart';
@@ -110,6 +112,32 @@ class _QuizDetailContent extends ConsumerWidget {
                       icon: const Icon(Icons.edit_rounded),
                       label: const Text('Edit'),
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                    PopupMenuButton<_QuizExportAction>(
+                      tooltip: 'Export quiz data',
+                      onSelected: (action) => _handleExportAction(context, ref, action),
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: _QuizExportAction.quizJson,
+                          child: Text('Export Quiz JSON'),
+                        ),
+                        PopupMenuItem(
+                          value: _QuizExportAction.latestAttemptJson,
+                          child: Text('Export Latest Attempt'),
+                        ),
+                        PopupMenuItem(
+                          value: _QuizExportAction.aiReviewPackage,
+                          child: Text('Export AI Review Package'),
+                        ),
+                      ],
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Icon(Icons.ios_share_rounded),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -137,7 +165,7 @@ class _QuizDetailContent extends ConsumerWidget {
                     FilledButton.icon(
                       onPressed: quiz.questions.isEmpty
                           ? null
-                          : () => context.go(
+                          : () => context.push(
                                 '/subjects/$subjectId/quizzes/${quiz.id}/session',
                               ),
                       icon: const Icon(Icons.play_arrow_rounded),
@@ -448,6 +476,98 @@ class _QuizDetailContent extends ConsumerWidget {
       }
     }
   }
+
+  Future<void> _handleExportAction(
+    BuildContext context,
+    WidgetRef ref,
+    _QuizExportAction action,
+  ) async {
+    try {
+      final portability = ref.read(contentPortabilityServiceProvider);
+      final exportFiles = ref.read(exportFileServiceProvider);
+
+      switch (action) {
+        case _QuizExportAction.quizJson:
+          final json = await portability.exportQuizJson(quiz: quiz);
+          final path = await exportFiles.saveJson(
+            fileName: '${quiz.name}_quiz_export',
+            json: json,
+          );
+          if (!context.mounted || path == null) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Quiz exported to $path')),
+          );
+          return;
+        case _QuizExportAction.latestAttemptJson:
+          final attempt = await portability.latestAttemptForQuiz(quiz.id);
+          if (!context.mounted) {
+            return;
+          }
+          if (attempt == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No quiz attempt has been recorded yet.'),
+              ),
+            );
+            return;
+          }
+          final json = await portability.exportQuizAttemptJson(attempt: attempt);
+          final path = await exportFiles.saveJson(
+            fileName: '${quiz.name}_latest_attempt',
+            json: json,
+          );
+          if (!context.mounted || path == null) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Latest attempt exported to $path')),
+          );
+          return;
+        case _QuizExportAction.aiReviewPackage:
+          final attempt = await portability.latestAttemptForQuiz(quiz.id);
+          if (!context.mounted) {
+            return;
+          }
+          if (attempt == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Complete the quiz once to export an AI review package.'),
+              ),
+            );
+            return;
+          }
+          final json = await portability.exportQuizAttemptAiPackageJson(
+            attempt: attempt,
+          );
+          final path = await exportFiles.saveJson(
+            fileName: '${quiz.name}_ai_review_package',
+            json: json,
+          );
+          if (!context.mounted || path == null) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('AI review package exported to $path')),
+          );
+          return;
+      }
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export quiz data: $error')),
+      );
+    }
+  }
+}
+
+enum _QuizExportAction {
+  quizJson,
+  latestAttemptJson,
+  aiReviewPackage,
 }
 
 class _QuestionCard extends StatelessWidget {

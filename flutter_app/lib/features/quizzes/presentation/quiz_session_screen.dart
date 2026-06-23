@@ -10,6 +10,8 @@ import '../../../theme/app_spacing.dart';
 import '../../dashboard/application/dashboard_summary_provider.dart';
 import '../../library/application/library_overview_provider.dart';
 import '../application/quiz_grading_service.dart';
+import '../data/quiz_attempts_repository.dart';
+import '../domain/quiz_attempt_session_record.dart';
 import '../../study/data/study_sessions_repository.dart';
 import '../../study/domain/study_session_record.dart';
 import '../application/subject_quizzes_controller.dart';
@@ -43,6 +45,8 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
   final TextEditingController _textController = TextEditingController();
   DateTime? _endedAt;
   final QuizGradingService _gradingService = const QuizGradingService();
+  final Map<String, int> _timeSpentSeconds = {};
+  DateTime? _activeQuestionStartedAt;
 
   @override
   void dispose() {
@@ -123,12 +127,10 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
                     Row(
                       children: [
                         OutlinedButton(
-                          onPressed: _currentIndex == 0
+                              onPressed: _currentIndex == 0
                               ? null
                               : () {
-                                  setState(() {
-                                    _currentIndex -= 1;
-                                  });
+                                  _moveToQuestion(_currentIndex - 1);
                                 },
                           child: const Text('Back'),
                         ),
@@ -152,11 +154,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
                           )
                         else
                           FilledButton(
-                            onPressed: () {
-                              setState(() {
-                                _currentIndex += 1;
-                              });
-                            },
+                            onPressed: () => _moveToQuestion(_currentIndex + 1),
                             child: const Text('Next'),
                           ),
                       ],
@@ -195,6 +193,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
       _questions = _questions.map(_shuffleQuestionOptions).toList();
     }
     _startedAt = DateTime.now();
+    _activeQuestionStartedAt = _startedAt;
     if (_quiz!.settings.timerMode == 'per_quiz' && _quiz!.settings.timerSeconds > 0) {
       _remainingSeconds = _quiz!.settings.timerSeconds;
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -279,6 +278,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
       _isSubmitting = true;
     });
     _timer?.cancel();
+    _captureQuestionTiming();
     try {
       final endedAt = DateTime.now();
       final results = _questions.map(_gradeQuestion).toList();
@@ -300,6 +300,12 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
               completedCount: correctCount,
               againCount: max(0, totalQuestions - correctCount),
               dueCount: totalQuestions,
+            ),
+          );
+      await ref.read(quizAttemptsRepositoryProvider).addAttempt(
+            _buildAttemptSession(
+              results: results,
+              endedAt: endedAt,
             ),
           );
       ref.invalidate(dashboardSummaryProvider);
@@ -352,6 +358,159 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
       );
     }
     return _quiz!.settings.marking;
+  }
+
+  void _captureQuestionTiming() {
+    if (_quiz == null ||
+        _activeQuestionStartedAt == null ||
+        _currentIndex < 0 ||
+        _currentIndex >= _questions.length) {
+      return;
+    }
+    final questionId = _questions[_currentIndex].id;
+    final elapsed = DateTime.now().difference(_activeQuestionStartedAt!).inSeconds;
+    if (elapsed > 0) {
+      _timeSpentSeconds[questionId] = (_timeSpentSeconds[questionId] ?? 0) + elapsed;
+    }
+    _activeQuestionStartedAt = DateTime.now();
+  }
+
+  void _moveToQuestion(int index) {
+    if (index < 0 || index >= _questions.length) {
+      return;
+    }
+    _captureQuestionTiming();
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  QuizAttemptSessionRecord _buildAttemptSession({
+    required List<QuizAttemptRecord> results,
+    required DateTime endedAt,
+  }) {
+    final quiz = _quiz!;
+    final totalQuestions = results.length;
+    final attemptedQuestions = results
+        .where((result) => result.answer.trim().isNotEmpty)
+        .length;
+    final correctCount = results.where((result) => result.isCorrect).length;
+    final skippedCount = results.where((result) => result.answer.trim().isEmpty).length;
+    final wrongCount = totalQuestions - correctCount - skippedCount;
+    final rawScore = results.fold<double>(
+      0,
+      (sum, result) => sum + result.pointsEarned,
+    );
+    final maxScore = results.fold<double>(
+      0,
+      (sum, result) => sum + result.maxPoints,
+    );
+    final scorePercent = maxScore <= 0 ? 0.0 : (rawScore / maxScore) * 100;
+    final passingScorePercent = quiz.settings.passingScorePercent;
+    final passed = passingScorePercent == null
+        ? null
+        : scorePercent >= passingScorePercent;
+    final weakTags = <String>[];
+    final strongTags = <String>[];
+    if (quiz.tags.isNotEmpty) {
+      if ((correctCount / totalQuestions) >= 0.75) {
+        strongTags.addAll(quiz.tags);
+      } else {
+        weakTags.addAll(quiz.tags);
+      }
+    }
+
+    return QuizAttemptSessionRecord(
+      id: '${endedAt.microsecondsSinceEpoch}_${quiz.id}',
+      quizId: quiz.id,
+      subjectId: widget.subjectId,
+      unitId: quiz.unitId,
+      quizName: quiz.name,
+      quizDescription: quiz.description,
+      quizTags: quiz.tags,
+      startedAt: _startedAt!,
+      endedAt: endedAt,
+      mode: 'practice',
+      totalQuestions: totalQuestions,
+      attemptedQuestions: attemptedQuestions,
+      correctCount: correctCount,
+      wrongCount: wrongCount,
+      skippedCount: skippedCount,
+      rawScore: rawScore,
+      maxScore: maxScore,
+      scorePercent: scorePercent,
+      passingScorePercent: passingScorePercent,
+      passed: passed,
+      weakTags: weakTags,
+      strongTags: strongTags,
+      items: [
+        for (var index = 0; index < _questions.length; index += 1)
+          _buildAttemptItem(_questions[index], results[index]),
+      ],
+    );
+  }
+
+  QuizAttemptItemRecord _buildAttemptItem(
+    QuizQuestion question,
+    QuizAttemptRecord result,
+  ) {
+    return QuizAttemptItemRecord(
+      questionId: question.id,
+      question: question.question,
+      questionType: question.type,
+      options: question.options,
+      selectedAnswer: _selectedAnswerLabel(question, result),
+      correctAnswer: _correctAnswerLabel(question),
+      isCorrect: result.isCorrect,
+      wasSkipped: result.answer.trim().isEmpty,
+      hintUsed: false,
+      hintToggledAtSeconds: null,
+      timeSpentSeconds: _timeSpentSeconds[question.id] ?? 0,
+      tags: _quiz?.tags ?? const [],
+      explanation: question.explanation,
+      pointsAwarded: result.pointsEarned,
+      maxPoints: result.maxPoints,
+      matchedKeywords: result.matchedKeywords,
+      missingKeywords: result.missingKeywords,
+      keywordScorePercent: result.keywordScorePercent,
+      wordCount: result.wordCount,
+      meetsWordCount: result.meetsWordCount,
+    );
+  }
+
+  String _selectedAnswerLabel(QuizQuestion question, QuizAttemptRecord result) {
+    if (result.answer.isEmpty) {
+      return '';
+    }
+    if (question.type == QuizQuestionType.mcq) {
+      final selectedIndex = int.tryParse(result.answer);
+      if (selectedIndex != null &&
+          selectedIndex >= 0 &&
+          selectedIndex < question.options.length) {
+        return question.options[selectedIndex];
+      }
+    }
+    return result.answer;
+  }
+
+  String _correctAnswerLabel(QuizQuestion question) {
+    switch (question.type) {
+      case QuizQuestionType.mcq:
+        final index = question.correctIndex;
+        if (index == null || index < 0 || index >= question.options.length) {
+          return 'Not set';
+        }
+        return question.options[index];
+      case QuizQuestionType.trueFalse:
+        return question.correctAnswer == true ? 'True' : 'False';
+      case QuizQuestionType.fillBlank:
+        return question.correctAnswers.join(', ');
+      case QuizQuestionType.shortAnswer:
+        if (question.modelAnswer.isNotEmpty) {
+          return question.modelAnswer;
+        }
+        return question.keywords.join(', ');
+    }
   }
 }
 
@@ -534,9 +693,7 @@ class _QuizResultsView extends StatelessWidget {
                       baseTextStyle: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Your answer: ${_answerLabel(questions[index], results[index])}',
-                    ),
+                    Text('Your answer: ${_selectedAnswerLabel(questions[index], results[index])}'),
                     Text(
                       'Correct answer: ${_correctAnswerLabel(questions[index])}',
                     ),
@@ -594,7 +751,7 @@ class _QuizResultsView extends StatelessWidget {
     );
   }
 
-  String _answerLabel(QuizQuestion question, QuizAttemptRecord result) {
+  String _selectedAnswerLabel(QuizQuestion question, QuizAttemptRecord result) {
     if (result.answer.isEmpty) {
       return 'Skipped';
     }
