@@ -72,9 +72,11 @@ class _QuizDetailContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final timerLabel = quiz.settings.timerMode == 'none'
-        ? 'Untimed'
-        : '${quiz.settings.timerSeconds ~/ 60} minutes';
+    final timerLabel = switch (quiz.settings.timerMode) {
+      'per_quiz' => '${quiz.settings.timerSeconds ~/ 60} minutes total',
+      'per_question' => '${quiz.settings.timerSeconds ~/ 60} minutes each',
+      _ => 'Untimed',
+    };
     final marking = quiz.settings.marking;
 
     return ListView(
@@ -165,9 +167,7 @@ class _QuizDetailContent extends ConsumerWidget {
                     FilledButton.icon(
                       onPressed: quiz.questions.isEmpty
                           ? null
-                          : () => context.push(
-                                '/subjects/$subjectId/quizzes/${quiz.id}/session',
-                              ),
+                          : () => _startQuiz(context),
                       icon: const Icon(Icons.play_arrow_rounded),
                       label: const Text('Start Quiz'),
                     ),
@@ -175,6 +175,11 @@ class _QuizDetailContent extends ConsumerWidget {
                       onPressed: () => _openAddQuestion(context, ref),
                       icon: const Icon(Icons.add_rounded),
                       label: const Text('Add Question'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _retryWrongAnswers(context, ref),
+                      icon: const Icon(Icons.replay_rounded),
+                      label: const Text('Retry Wrong Answers'),
                     ),
                   ],
                 ),
@@ -475,6 +480,94 @@ class _QuizDetailContent extends ConsumerWidget {
         );
       }
     }
+  }
+
+  Future<void> _retryWrongAnswers(BuildContext context, WidgetRef ref) async {
+    try {
+      final portability = ref.read(contentPortabilityServiceProvider);
+      final retryQuiz = await portability.buildRetryQuizFromLatestAttempt(quiz.id);
+      if (!context.mounted) {
+        return;
+      }
+      if (retryQuiz == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No incorrect or skipped questions are available from the latest attempt yet.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await ref
+          .read(subjectQuizzesControllerProvider(subjectId).notifier)
+          .upsertQuiz(retryQuiz);
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Created ${retryQuiz.name} with ${retryQuiz.questions.length} question${retryQuiz.questions.length == 1 ? '' : 's'}.',
+          ),
+        ),
+      );
+      context.push('/subjects/$subjectId/quizzes/${retryQuiz.id}');
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not build retry quiz: $error')),
+      );
+    }
+  }
+
+  Future<void> _startQuiz(BuildContext context) async {
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Start Quiz',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Choose practice mode for ordinary revision or exam mode for a stricter attempt record.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.school_rounded),
+                title: const Text('Practice Mode'),
+                subtitle: const Text('Use this for normal self-testing and revision.'),
+                onTap: () => Navigator.of(context).pop('practice'),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.workspace_premium_rounded),
+                title: const Text('Exam Mode'),
+                subtitle: const Text('Records the attempt as an exam-style run in exports and analytics.'),
+                onTap: () => Navigator.of(context).pop('exam'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (mode == null || !context.mounted) {
+      return;
+    }
+    context.push('/subjects/$subjectId/quizzes/${quiz.id}/session?mode=$mode');
   }
 
   Future<void> _handleExportAction(

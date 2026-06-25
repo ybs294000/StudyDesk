@@ -200,6 +200,7 @@ class _QuizEditorSheetState extends State<QuizEditorSheet> {
               items: const [
                 DropdownMenuItem(value: 'none', child: Text('No timer')),
                 DropdownMenuItem(value: 'per_quiz', child: Text('Whole quiz timer')),
+                DropdownMenuItem(value: 'per_question', child: Text('Per-question timer')),
               ],
               onChanged: (value) {
                 if (value == null) {
@@ -214,7 +215,7 @@ class _QuizEditorSheetState extends State<QuizEditorSheet> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Timer minutes',
-                helperText: 'Leave blank for untimed quizzes.',
+                helperText: 'Applies to the whole quiz or to each question, depending on timer mode.',
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -296,7 +297,10 @@ class _QuizEditorSheetState extends State<QuizEditorSheet> {
             .toList(),
         shuffleQuestions: _shuffleQuestions,
         shuffleOptions: _shuffleOptions,
-        timerMode: timerMinutes > 0 && _timerMode == 'per_quiz' ? 'per_quiz' : 'none',
+        timerMode: timerMinutes > 0 &&
+                (_timerMode == 'per_quiz' || _timerMode == 'per_question')
+            ? _timerMode
+            : 'none',
         timerSeconds: timerMinutes > 0 ? timerMinutes * 60 : 0,
         passingScorePercent: passingScore,
         correctPoints: correctPoints,

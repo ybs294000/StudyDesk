@@ -36,6 +36,8 @@ class GamificationSummary {
     required this.dailyGoalMinutes,
     required this.goalStreakDays,
     required this.weeklyMinutes,
+    required this.todayPomodoroCount,
+    required this.weeklyPomodoroCount,
     required this.weeklyReviewedCount,
     required this.weeklySessionCount,
     required this.weeklyQuizAccuracyRate,
@@ -55,6 +57,8 @@ class GamificationSummary {
   final int dailyGoalMinutes;
   final int goalStreakDays;
   final int weeklyMinutes;
+  final int todayPomodoroCount;
+  final int weeklyPomodoroCount;
   final int weeklyReviewedCount;
   final int weeklySessionCount;
   final double weeklyQuizAccuracyRate;
@@ -91,6 +95,8 @@ class GamificationSummary {
       dailyGoalMinutes: dailyGoalMinutes,
       goalStreakDays: 0,
       weeklyMinutes: 0,
+      todayPomodoroCount: 0,
+      weeklyPomodoroCount: 0,
       weeklyReviewedCount: 0,
       weeklySessionCount: 0,
       weeklyQuizAccuracyRate: 0,
@@ -114,7 +120,9 @@ class GamificationSummary {
     var totalXp = 0;
     var totalReviewedCount = 0;
     var todayMinutes = 0;
+    var todayPomodoroCount = 0;
     var weeklyMinutes = 0;
+    var weeklyPomodoroCount = 0;
     var weeklyReviewedCount = 0;
     var weeklySessionCount = 0;
     var weeklyQuizCorrect = 0;
@@ -140,9 +148,15 @@ class GamificationSummary {
 
       if (sessionDay == today) {
         todayMinutes += durationMinutes;
+        if (session.sessionType == 'pomodoro') {
+          todayPomodoroCount += 1;
+        }
       }
       if (!sessionDay.isBefore(sevenDayStart)) {
         weeklyMinutes += durationMinutes;
+        if (session.sessionType == 'pomodoro') {
+          weeklyPomodoroCount += 1;
+        }
         weeklyReviewedCount += session.reviewedCount;
         weeklySessionCount += 1;
         if (session.sessionType == 'quiz') {
@@ -183,6 +197,8 @@ class GamificationSummary {
       dailyGoalMinutes: dailyGoalMinutes,
       goalStreakDays: goalStreakDays,
       weeklyMinutes: weeklyMinutes,
+      todayPomodoroCount: todayPomodoroCount,
+      weeklyPomodoroCount: weeklyPomodoroCount,
       weeklyReviewedCount: weeklyReviewedCount,
       weeklySessionCount: weeklySessionCount,
       weeklyQuizAccuracyRate: weeklyQuizTotal == 0
@@ -206,9 +222,13 @@ class GamificationSummary {
       'quiz' => (session.completedCount * 4) +
           session.reviewedCount +
           min(durationMinutes, 45),
+      'qa' => (session.completedCount * 4) +
+          (session.reviewedCount * 2) +
+          min(durationMinutes, 35),
       'flashcard' => (session.reviewedCount * 2) +
           session.completedCount +
           min(durationMinutes, 30),
+      'note' => (session.reviewedCount * 3) + min(durationMinutes, 35),
       _ => (session.reviewedCount * 2) + min(durationMinutes, 20),
     };
   }

@@ -1,8 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/settings/profile_settings_controller.dart';
 import '../../cards/data/cards_repository.dart';
 import '../../cards/domain/card_record.dart';
 import '../../decks/data/decks_repository.dart';
+import '../../notes/data/note_review_repository.dart';
+import '../../notes/data/notes_repository.dart';
+import '../../notes/domain/note_record.dart';
+import '../../notes/domain/note_review_record.dart';
+import '../../qa/data/qa_items_repository.dart';
+import '../../qa/data/qa_review_repository.dart';
+import '../../qa/domain/qa_item_record.dart';
+import '../../qa/domain/qa_review_record.dart';
+import '../../quizzes/data/quiz_attempts_repository.dart';
+import '../../quizzes/data/quizzes_repository.dart';
+import '../../quizzes/domain/quiz_attempt_session_record.dart';
+import '../../quizzes/domain/quiz_models.dart';
 import '../../study/data/study_sessions_repository.dart';
 import '../../study/domain/study_session_record.dart';
 import '../../subjects/data/subjects_repository.dart';
@@ -11,19 +24,40 @@ final dashboardSummaryProvider = FutureProvider<DashboardSummary>((ref) async {
   final subjects = await ref.read(subjectsRepositoryProvider).loadSubjects();
   final decks = await ref.read(decksRepositoryProvider).loadDecks();
   final cards = await ref.read(cardsRepositoryProvider).loadCards();
+  final notes = await ref.read(notesRepositoryProvider).loadNotes();
+  final noteReviews = await ref.read(noteReviewRepositoryProvider).loadReviews();
+  final qaItems = await ref.read(qaItemsRepositoryProvider).loadItems();
+  final qaReviews = await ref.read(qaReviewRepositoryProvider).loadReviews();
+  final quizzes = await ref.read(quizzesRepositoryProvider).loadQuizzes();
+  final quizAttempts = await ref.read(quizAttemptsRepositoryProvider).loadAttempts();
   final sessions = await ref.read(studySessionsRepositoryProvider).loadSessions();
+  final settings = ref.read(profileSettingsControllerProvider);
 
   return DashboardSummary.fromData(
     subjects: subjects.map((subject) => subject.id).toList(),
     decks: decks.map((deck) => (id: deck.id, subjectId: deck.subjectId)).toList(),
     cards: cards,
+    notes: notes,
+    noteReviews: noteReviews,
+    qaItems: qaItems,
+    qaReviews: qaReviews,
+    quizzes: quizzes,
+    quizAttempts: quizAttempts,
     sessions: sessions,
+    flashcardsEnabled: settings.flashcardSpacedRepetitionEnabled,
+    notesEnabled: settings.noteSpacedRepetitionEnabled,
+    qaEnabled: settings.qaSpacedRepetitionEnabled,
+    quizzesEnabled: settings.quizPracticeSchedulingEnabled,
   );
 });
 
 class DashboardSummary {
   const DashboardSummary({
     required this.totalDueCards,
+    required this.totalDueNotes,
+    required this.totalDueQa,
+    required this.totalDueQuizzes,
+    required this.totalDueItems,
     required this.totalCards,
     required this.studiedTodayCount,
     required this.currentStreak,
@@ -38,6 +72,10 @@ class DashboardSummary {
   });
 
   final int totalDueCards;
+  final int totalDueNotes;
+  final int totalDueQa;
+  final int totalDueQuizzes;
+  final int totalDueItems;
   final int totalCards;
   final int studiedTodayCount;
   final int currentStreak;
@@ -54,7 +92,17 @@ class DashboardSummary {
     required List<String> subjects,
     required List<({String id, String subjectId})> decks,
     required List<CardRecord> cards,
+    required List<NoteRecord> notes,
+    required List<NoteReviewRecord> noteReviews,
+    required List<QaItemRecord> qaItems,
+    required List<QaReviewRecord> qaReviews,
+    required List<QuizRecord> quizzes,
+    required List<QuizAttemptSessionRecord> quizAttempts,
     required List<StudySessionRecord> sessions,
+    required bool flashcardsEnabled,
+    required bool notesEnabled,
+    required bool qaEnabled,
+    required bool quizzesEnabled,
   }) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -67,6 +115,9 @@ class DashboardSummary {
           dueCount: 0,
           deckCount: 0,
           cardsCount: 0,
+          notesCount: 0,
+          qaCount: 0,
+          quizCount: 0,
           reviewedToday: 0,
           masteryRatio: 0,
         ),
@@ -82,6 +133,9 @@ class DashboardSummary {
     }
 
     var totalDueCards = 0;
+    var totalDueNotes = 0;
+    var totalDueQa = 0;
+    var totalDueQuizzes = 0;
     var overdueCards = 0;
     var unscheduledCards = 0;
     var dueTodayCards = 0;
@@ -101,7 +155,7 @@ class DashboardSummary {
 
       final dueAt = card.dueAt;
       final dueNow = dueAt == null || !dueAt.isAfter(now);
-      if (dueNow) {
+      if (dueNow && flashcardsEnabled) {
         totalDueCards += 1;
       }
       if (card.reviewCount > 0) {
@@ -128,9 +182,73 @@ class DashboardSummary {
       }
 
       metrics[subjectId] = current.copyWith(
-        dueCount: current.dueCount + (dueNow ? 1 : 0),
+        dueCount: current.dueCount + (flashcardsEnabled && dueNow ? 1 : 0),
         cardsCount: current.cardsCount + 1,
       );
+    }
+
+    final reviewByNoteId = <String, NoteReviewRecord>{
+      for (final review in noteReviews) review.noteId: review,
+    };
+
+    for (final note in notes) {
+      final current = metrics[note.subjectId];
+      if (current == null) {
+        continue;
+      }
+      final review = reviewByNoteId[note.id];
+      final dueNow = review == null || review.dueAt == null || !review.dueAt!.isAfter(now);
+      metrics[note.subjectId] = current.copyWith(
+        notesCount: current.notesCount + 1,
+        dueCount: current.dueCount + (notesEnabled && dueNow ? 1 : 0),
+      );
+      if (notesEnabled && dueNow) {
+        totalDueNotes += 1;
+      }
+    }
+
+    final reviewByPromptId = <String, QaReviewRecord>{
+      for (final review in qaReviews) review.promptId: review,
+    };
+
+    for (final prompt in qaItems) {
+      final current = metrics[prompt.subjectId];
+      if (current == null) {
+        continue;
+      }
+      final review = reviewByPromptId[prompt.id];
+      final dueNow = review == null || review.dueAt == null || !review.dueAt!.isAfter(now);
+      metrics[prompt.subjectId] = current.copyWith(
+        qaCount: current.qaCount + 1,
+        dueCount: current.dueCount + (qaEnabled && dueNow ? 1 : 0),
+      );
+      if (qaEnabled && dueNow) {
+        totalDueQa += 1;
+      }
+    }
+
+    final latestAttemptByQuiz = <String, QuizAttemptSessionRecord>{};
+    for (final attempt in quizAttempts) {
+      final existing = latestAttemptByQuiz[attempt.quizId];
+      if (existing == null || attempt.endedAt.isAfter(existing.endedAt)) {
+        latestAttemptByQuiz[attempt.quizId] = attempt;
+      }
+    }
+
+    for (final quiz in quizzes) {
+      final current = metrics[quiz.subjectId];
+      if (current == null) {
+        continue;
+      }
+      final dueAt = _recommendedQuizDueAt(latestAttemptByQuiz[quiz.id]);
+      final dueNow = dueAt == null || !dueAt.isAfter(now);
+      metrics[quiz.subjectId] = current.copyWith(
+        quizCount: current.quizCount + 1,
+        dueCount: current.dueCount + (quizzesEnabled && dueNow ? 1 : 0),
+      );
+      if (quizzesEnabled && dueNow) {
+        totalDueQuizzes += 1;
+      }
     }
 
     final sessionsSorted = [...sessions]
@@ -209,6 +327,10 @@ class DashboardSummary {
 
     return DashboardSummary(
       totalDueCards: totalDueCards,
+      totalDueNotes: totalDueNotes,
+      totalDueQa: totalDueQa,
+      totalDueQuizzes: totalDueQuizzes,
+      totalDueItems: totalDueCards + totalDueNotes + totalDueQa + totalDueQuizzes,
       totalCards: cards.length,
       studiedTodayCount: studiedTodayCount,
       currentStreak: currentStreak,
@@ -238,6 +360,9 @@ class SubjectStudyMetrics {
     required this.dueCount,
     required this.deckCount,
     required this.cardsCount,
+    required this.notesCount,
+    required this.qaCount,
+    required this.quizCount,
     required this.reviewedToday,
     required this.masteryRatio,
   });
@@ -245,6 +370,9 @@ class SubjectStudyMetrics {
   final int dueCount;
   final int deckCount;
   final int cardsCount;
+  final int notesCount;
+  final int qaCount;
+  final int quizCount;
   final int reviewedToday;
   final double masteryRatio;
 
@@ -252,6 +380,9 @@ class SubjectStudyMetrics {
     int? dueCount,
     int? deckCount,
     int? cardsCount,
+    int? notesCount,
+    int? qaCount,
+    int? quizCount,
     int? reviewedToday,
     double? masteryRatio,
   }) {
@@ -259,6 +390,9 @@ class SubjectStudyMetrics {
       dueCount: dueCount ?? this.dueCount,
       deckCount: deckCount ?? this.deckCount,
       cardsCount: cardsCount ?? this.cardsCount,
+      notesCount: notesCount ?? this.notesCount,
+      qaCount: qaCount ?? this.qaCount,
+      quizCount: quizCount ?? this.quizCount,
       reviewedToday: reviewedToday ?? this.reviewedToday,
       masteryRatio: masteryRatio ?? this.masteryRatio,
     );
@@ -293,4 +427,19 @@ class DueForecast {
   final int dueLater;
 
   int get total => overdue + unscheduled + dueToday + dueThisWeek + dueLater;
+}
+
+DateTime? _recommendedQuizDueAt(QuizAttemptSessionRecord? latestAttempt) {
+  if (latestAttempt == null) {
+    return null;
+  }
+
+  final score = latestAttempt.scorePercent;
+  final intervalDays = switch (score) {
+    < 50 => 1,
+    < 70 => 3,
+    < 90 => 7,
+    _ => 14,
+  };
+  return latestAttempt.endedAt.add(Duration(days: intervalDays));
 }

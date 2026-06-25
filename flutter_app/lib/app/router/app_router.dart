@@ -6,7 +6,10 @@ import '../../features/analytics/analytics_screen.dart';
 import '../../features/cards/presentation/deck_detail_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/notes/presentation/note_editor_screen.dart';
+import '../../features/notes/presentation/note_reading_screen.dart';
 import '../../features/notes/presentation/subject_notes_screen.dart';
+import '../../features/qa/presentation/qa_session_screen.dart';
+import '../../features/qa/presentation/subject_qa_screen.dart';
 import '../../features/quizzes/presentation/quiz_detail_screen.dart';
 import '../../features/quizzes/presentation/quiz_session_screen.dart';
 import '../../features/settings/settings_screen.dart';
@@ -56,6 +59,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/subjects/:subjectId/notes/:noteId/read',
+            builder: (context, state) => NoteReadingScreen(
+              subjectId: state.pathParameters['subjectId']!,
+              noteId: state.pathParameters['noteId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/subjects/:subjectId/qa',
+            builder: (context, state) => SubjectQaScreen(
+              subjectId: state.pathParameters['subjectId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/subjects/:subjectId/qa/:promptId/session',
+            builder: (context, state) => QaSessionScreen(
+              subjectId: state.pathParameters['subjectId']!,
+              promptId: state.pathParameters['promptId']!,
+            ),
+          ),
+          GoRoute(
             path: '/subjects/:subjectId/decks/:deckId/study',
             builder: (context, state) => StudySessionScreen(
               deckId: state.pathParameters['deckId']!,
@@ -74,6 +97,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => QuizSessionScreen(
               subjectId: state.pathParameters['subjectId']!,
               quizId: state.pathParameters['quizId']!,
+              sessionMode: state.uri.queryParameters['mode'] ?? 'practice',
             ),
           ),
           GoRoute(

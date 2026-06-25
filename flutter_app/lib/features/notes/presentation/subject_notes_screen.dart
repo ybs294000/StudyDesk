@@ -110,6 +110,7 @@ class _SubjectNotesScreenState extends ConsumerState<SubjectNotesScreen> {
                           note: activeNote,
                           units: units,
                           allNotes: notes,
+                          subjectId: widget.subjectId,
                           onOpenLinkedNote: _openOrCreateLinkedNote,
                           onEdit: () => _openEditor(activeNote.id),
                           onCreateNote: _createNote,
@@ -537,6 +538,7 @@ class _NotePreviewPane extends StatelessWidget {
     required this.note,
     required this.units,
     required this.allNotes,
+    required this.subjectId,
     required this.onOpenLinkedNote,
     required this.onEdit,
     required this.onCreateNote,
@@ -545,6 +547,7 @@ class _NotePreviewPane extends StatelessWidget {
   final NoteRecord note;
   final List<SubjectUnitRecord> units;
   final List<NoteRecord> allNotes;
+  final String subjectId;
   final ValueChanged<String> onOpenLinkedNote;
   final VoidCallback onEdit;
   final Future<void> Function() onCreateNote;
@@ -583,6 +586,13 @@ class _NotePreviewPane extends StatelessWidget {
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_note_rounded),
                   label: const Text('Edit'),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                FilledButton.tonalIcon(
+                  onPressed: () =>
+                      context.push('/subjects/$subjectId/notes/${note.id}/read'),
+                  icon: const Icon(Icons.menu_book_rounded),
+                  label: const Text('Read'),
                 ),
               ],
             ),

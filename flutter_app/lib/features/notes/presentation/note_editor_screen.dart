@@ -16,6 +16,7 @@ import '../../decks/domain/deck_record.dart';
 import '../../decks/presentation/widgets/deck_editor_sheet.dart';
 import '../../quizzes/application/subject_quizzes_controller.dart';
 import '../../quizzes/domain/quiz_models.dart';
+import '../../qa/application/subject_qa_controller.dart';
 import '../../units/application/subject_units_controller.dart';
 import '../../units/domain/subject_unit_record.dart';
 import '../application/note_markdown_utils.dart';
@@ -135,9 +136,14 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
                       _goBackToNotes();
                     }
                   },
+                  onOpenReader: () {
+                    context.push('/subjects/${widget.subjectId}/notes/${widget.noteId}/read');
+                  },
+                  onImportFromAi: _importStructuredMarkdownFromAi,
                   onImportBody: _replaceBodyFromMarkdown,
                   onExportMarkdown: _exportMarkdown,
                   onCreateCard: () => _createCardFromSelection(decksAsync),
+                  onGenerateQaBank: _generateQaBankFromNote,
                   onGenerateQaQuiz: _generateQaQuizFromNote,
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -330,6 +336,160 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
     } catch (error) {
       _showMessage('Could not import Markdown: $error');
     }
+  }
+
+  Future<void> _importStructuredMarkdownFromAi() async {
+    final initialPrompt = '''
+Format your response as Markdown. Use ## for each major section. Add this at the top:
+---
+section-level: h2
+---
+''';
+    final pasteController = TextEditingController();
+    final importedMarkdown = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final markdown = pasteController.text;
+          final sectionLevel = resolveSectionHeadingLevel(markdown);
+          final sections = extractSections(markdown);
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.md + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.86,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Import from AI',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Copy the prompt guide below into your AI tool, then paste the returned Markdown here for section-aware import.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: Theme.of(context).dividerColor,
+                        ),
+                      ),
+                      child: SelectableText(
+                        initialPrompt.trim(),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontFamily: 'Courier New',
+                              height: 1.45,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Expanded(
+                      child: TextField(
+                        controller: pasteController,
+                        onChanged: (_) => setModalState(() {}),
+                        expands: true,
+                        maxLines: null,
+                        minLines: null,
+                        textAlignVertical: TextAlignVertical.top,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontFamily: 'Courier New',
+                              height: 1.5,
+                            ),
+                        decoration: const InputDecoration(
+                          alignLabelWithHint: true,
+                          labelText: 'Paste Markdown response',
+                          hintText: 'Paste AI-generated Markdown here.',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    if (markdown.trim().isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.34),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Section preview',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              sections.isEmpty
+                                  ? 'No complete sections detected yet. Add headings like ## Topic to create section recall blocks.'
+                                  : 'Detected ${sections.length} section${sections.length == 1 ? '' : 's'} at heading level h$sectionLevel.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            if (sections.isNotEmpty) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              Wrap(
+                                spacing: AppSpacing.xs,
+                                runSpacing: AppSpacing.xs,
+                                children: [
+                                  for (final section in sections.take(6))
+                                    Chip(label: Text(section.heading)),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                        const Spacer(),
+                        FilledButton(
+                          onPressed: markdown.trim().isEmpty
+                              ? null
+                              : () => Navigator.of(context).pop(markdown),
+                          child: const Text('Use Markdown'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    pasteController.dispose();
+    if (importedMarkdown == null || importedMarkdown.trim().isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() {
+      if (_titleController.text.trim().isEmpty ||
+          _titleController.text.trim() == 'Untitled Note') {
+        _titleController.text = deriveTitleFromMarkdown(importedMarkdown);
+      }
+      _bodyController.text = importedMarkdown;
+    });
+    _showMessage('Imported structured Markdown into this note.');
   }
 
   Future<void> _exportMarkdown() async {
@@ -544,6 +704,48 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
     }
   }
 
+  Future<void> _generateQaBankFromNote() async {
+    await _saveNow();
+    final title = _titleController.text.trim().isEmpty
+        ? 'Untitled Note'
+        : _titleController.text.trim();
+    final sections = extractSections(_bodyController.text);
+    if (sections.isEmpty) {
+      _showMessage(
+        'Add structured headings with content first so StudyDesk can create recall prompts from the note.',
+      );
+      return;
+    }
+
+    var createdCount = 0;
+    for (final section in sections) {
+      final answer = section.bodyMarkdown.trim();
+      if (answer.isEmpty) {
+        continue;
+      }
+      final question = 'Explain ${section.heading}.';
+      await ref.read(subjectQaControllerProvider(widget.subjectId).notifier).upsertQa(
+            subjectId: widget.subjectId,
+            unitId: _selectedUnitId,
+            question: question,
+            answerMarkdown: answer,
+            tags: normalizeTags([
+              ..._tagsController.text.split(',').map((tag) => tag.trim()),
+              'notes-generated',
+              'qa-bank',
+              title,
+            ]),
+          );
+      createdCount += 1;
+    }
+
+    if (createdCount == 0) {
+      _showMessage('No Q&A prompts could be created from this note yet.');
+      return;
+    }
+    _showMessage('Created $createdCount Q&A prompt${createdCount == 1 ? '' : 's'} from this note.');
+  }
+
   Future<DeckRecord?> _chooseDeck(List<DeckRecord> decks) async {
     return showModalBottomSheet<DeckRecord>(
       context: context,
@@ -644,9 +846,12 @@ class _EditorTopBar extends StatelessWidget {
     required this.onUnitChanged,
     required this.isSaving,
     required this.onBack,
+    required this.onOpenReader,
+    required this.onImportFromAi,
     required this.onImportBody,
     required this.onExportMarkdown,
     required this.onCreateCard,
+    required this.onGenerateQaBank,
     required this.onGenerateQaQuiz,
   });
 
@@ -657,9 +862,12 @@ class _EditorTopBar extends StatelessWidget {
   final ValueChanged<String?> onUnitChanged;
   final bool isSaving;
   final Future<void> Function() onBack;
+  final VoidCallback onOpenReader;
+  final Future<void> Function() onImportFromAi;
   final Future<void> Function() onImportBody;
   final Future<void> Function() onExportMarkdown;
   final Future<void> Function() onCreateCard;
+  final Future<void> Function() onGenerateQaBank;
   final Future<void> Function() onGenerateQaQuiz;
 
   @override
@@ -743,6 +951,16 @@ class _EditorTopBar extends StatelessWidget {
               ),
             ),
             FilledButton.tonalIcon(
+              onPressed: onOpenReader,
+              icon: const Icon(Icons.menu_book_rounded),
+              label: const Text('Read'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onImportFromAi,
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Import from AI'),
+            ),
+            FilledButton.tonalIcon(
               onPressed: onImportBody,
               icon: const Icon(Icons.file_open_rounded),
               label: const Text('Replace from Markdown'),
@@ -756,6 +974,11 @@ class _EditorTopBar extends StatelessWidget {
               onPressed: onCreateCard,
               icon: const Icon(Icons.style_rounded),
               label: const Text('Create Card from Selection'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onGenerateQaBank,
+              icon: const Icon(Icons.record_voice_over_rounded),
+              label: const Text('Generate Q&A Bank'),
             ),
             FilledButton.tonalIcon(
               onPressed: onGenerateQaQuiz,

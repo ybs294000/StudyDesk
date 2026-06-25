@@ -6,8 +6,28 @@ This changelog follows the spirit of Keep a Changelog and uses semantic-style re
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation refreshed to stay aligned with the current 1.0.0 local-first application state
+- Theme catalog expanded with a monochrome workspace preset inspired by popular black-and-white knowledge-work interfaces
+
+## [1.0.0] - 2026-06-25
+
 ### Added
 
+- Subject-level notes workspace with Markdown, LaTeX, linking, search, reading mode, and section recall
+- Subject-level Q&A bank with generation from note headings, recall sessions, and scheduled review
+- Flashcard CSV import alongside JSON deck import and export
+- Quiz practice mode and exam mode selection
+- Per-question quiz timer support and richer local quiz attempt exports
+- Local analytics dashboards with due forecasts, streaks, session summaries, mastery indicators, and weekly progress
+- Gamification summaries including XP, milestones, and daily goal tracking
+- Persistent Pomodoro timer integrated with session logging and analytics
+- User-configurable spaced-repetition toggles for flashcards, notes, Q&A, and quiz practice
+- Native backup-folder safety snapshots and expanded local export flows
+- Linux desktop target scaffolding and packaging scripts
+- Android, Windows, and Linux artifact packaging scripts for repeatable local testing
+- Additional built-in sample content for decks, quizzes, notes, and structured recall flows
 - Keyword-graded Q&A support for quiz short-answer questions
 - Dedicated quiz grading service for reusable scoring logic
 - Subject-level JSON import through file picker and web drag-and-drop
@@ -15,16 +35,12 @@ This changelog follows the spirit of Keep a Changelog and uses semantic-style re
 
 ### Changed
 
-- Root README expanded to reflect the current shipped repository state
-- Core engineering docs rewritten in a repository-facing tone and aligned with current implementation
+- Root README expanded to reflect the shipped repository state and current platform workflows
+- Core engineering docs rewritten in a repository-facing tone and aligned with the implemented app structure
 - Public docs now avoid internal workflow language and stale product-positioning notes
-- Internal reference material and local-only helper files removed from version control
-
-### Planned
-
-- Sheets and rehearsal mode
-- Reminder and link-management modules
-- Broader automated test coverage
+- Theme system refined with calmer defaults and a new monochrome workspace preset
+- Windows packaging scripts hardened against stale plugin-symlink build failures
+- Repository packaging helpers now stage build artifacts into predictable `artifacts/` folders
 
 ## [0.1.0-alpha] - 2026-06-20
 

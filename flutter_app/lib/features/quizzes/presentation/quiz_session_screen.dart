@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/markdown_content.dart';
@@ -21,11 +22,13 @@ class QuizSessionScreen extends ConsumerStatefulWidget {
   const QuizSessionScreen({
     required this.subjectId,
     required this.quizId,
+    this.sessionMode = 'practice',
     super.key,
   });
 
   final String subjectId;
   final String quizId;
+  final String sessionMode;
 
   @override
   ConsumerState<QuizSessionScreen> createState() => _QuizSessionScreenState();
@@ -38,6 +41,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
   int _currentIndex = 0;
   Timer? _timer;
   int? _remainingSeconds;
+  int? _questionSecondsRemaining;
   DateTime? _startedAt;
   bool _submitted = false;
   bool _isSubmitting = false;
@@ -64,6 +68,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
         results: _results,
         startedAt: _startedAt!,
         endedAt: _endedAt!,
+        sessionMode: widget.sessionMode,
       );
     }
 
@@ -78,24 +83,61 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
         _syncTextController(question);
         final total = _questions.length;
 
-        return ListView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          children: [
-            Row(
+        return CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
+              _moveToQuestion(_currentIndex - 1);
+            },
+            const SingleActivator(LogicalKeyboardKey.arrowRight): () {
+              if (_currentIndex == total - 1) {
+                _submitQuiz();
+              } else {
+                _moveToQuestion(_currentIndex + 1);
+              }
+            },
+            const SingleActivator(LogicalKeyboardKey.keyJ): () {
+              _moveToQuestion(_currentIndex - 1);
+            },
+            const SingleActivator(LogicalKeyboardKey.keyK): () {
+              if (_currentIndex == total - 1) {
+                _submitQuiz();
+              } else {
+                _moveToQuestion(_currentIndex + 1);
+              }
+            },
+          },
+          child: Focus(
+            autofocus: true,
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                Expanded(
-                  child: Text(
-                    _quiz!.name,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-                if (_remainingSeconds != null) _TimerPill(seconds: _remainingSeconds!),
-              ],
+            Text(
+              _quiz!.name,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.sm),
             LinearProgressIndicator(value: (_currentIndex + 1) / total.toDouble()),
             const SizedBox(height: AppSpacing.xs),
-            Text('Question ${_currentIndex + 1} of $total'),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                Text(
+                  'Question ${_currentIndex + 1} of $total • ${widget.sessionMode == 'exam' ? 'Exam mode' : 'Practice mode'}',
+                ),
+                if (_questionSecondsRemaining != null)
+                  _TimerPill(
+                    seconds: _questionSecondsRemaining!,
+                    label: 'Per question',
+                  )
+                else if (_remainingSeconds != null)
+                  _TimerPill(
+                    seconds: _remainingSeconds!,
+                    label: widget.sessionMode == 'exam' ? 'Exam' : 'Quiz',
+                  ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.lg),
             Card(
               child: Padding(
@@ -163,7 +205,9 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
                 ),
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -194,27 +238,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
     }
     _startedAt = DateTime.now();
     _activeQuestionStartedAt = _startedAt;
-    if (_quiz!.settings.timerMode == 'per_quiz' && _quiz!.settings.timerSeconds > 0) {
-      _remainingSeconds = _quiz!.settings.timerSeconds;
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted || _submitted) {
-          timer.cancel();
-          return;
-        }
-        if (_remainingSeconds == null) {
-          return;
-        }
-        if (_remainingSeconds! <= 1) {
-          timer.cancel();
-          _remainingSeconds = 0;
-          _submitQuiz();
-          return;
-        }
-        setState(() {
-          _remainingSeconds = _remainingSeconds! - 1;
-        });
-      });
-    }
+    _startTimerIfNeeded();
   }
 
   QuizQuestion _shuffleQuestionOptions(QuizQuestion question) {
@@ -325,7 +349,9 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not submit quiz: $error'),
+          content: Text(
+            'Could not submit quiz. Please try again. If this repeats after updating, let me know.',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -383,6 +409,88 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
     setState(() {
       _currentIndex = index;
     });
+    _resetPerQuestionTimerIfNeeded();
+  }
+
+  void _startTimerIfNeeded() {
+    _timer?.cancel();
+    _remainingSeconds = null;
+    _questionSecondsRemaining = null;
+    final settings = _quiz?.settings;
+    if (settings == null || settings.timerSeconds <= 0) {
+      return;
+    }
+    if (settings.timerMode == 'per_quiz') {
+      _remainingSeconds = settings.timerSeconds;
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _submitted) {
+          timer.cancel();
+          return;
+        }
+        if (_remainingSeconds == null) {
+          return;
+        }
+        if (_remainingSeconds! <= 1) {
+          timer.cancel();
+          _remainingSeconds = 0;
+          _submitQuiz();
+          return;
+        }
+        setState(() {
+          _remainingSeconds = _remainingSeconds! - 1;
+        });
+      });
+      return;
+    }
+    if (settings.timerMode == 'per_question') {
+      _questionSecondsRemaining = settings.timerSeconds;
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _submitted) {
+          timer.cancel();
+          return;
+        }
+        if (_questionSecondsRemaining == null) {
+          return;
+        }
+        if (_questionSecondsRemaining! <= 1) {
+          _handleQuestionTimeout();
+          return;
+        }
+        setState(() {
+          _questionSecondsRemaining = _questionSecondsRemaining! - 1;
+        });
+      });
+    }
+  }
+
+  void _resetPerQuestionTimerIfNeeded() {
+    final settings = _quiz?.settings;
+    if (settings == null || settings.timerMode != 'per_question') {
+      return;
+    }
+    setState(() {
+      _questionSecondsRemaining = settings.timerSeconds;
+    });
+  }
+
+  void _handleQuestionTimeout() {
+    if (_quiz == null || _submitted) {
+      return;
+    }
+    final question = _questions[_currentIndex];
+    _captureQuestionTiming();
+    _answers.putIfAbsent(question.id, () => '');
+    if (_currentIndex >= _questions.length - 1) {
+      setState(() {
+        _questionSecondsRemaining = 0;
+      });
+      _submitQuiz();
+      return;
+    }
+    setState(() {
+      _currentIndex += 1;
+      _questionSecondsRemaining = _quiz!.settings.timerSeconds;
+    });
   }
 
   QuizAttemptSessionRecord _buildAttemptSession({
@@ -430,7 +538,7 @@ class _QuizSessionScreenState extends ConsumerState<QuizSessionScreen> {
       quizTags: quiz.tags,
       startedAt: _startedAt!,
       endedAt: endedAt,
-      mode: 'practice',
+      mode: widget.sessionMode == 'exam' ? 'exam' : 'practice',
       totalQuestions: totalQuestions,
       attemptedQuestions: attemptedQuestions,
       correctCount: correctCount,
@@ -593,9 +701,13 @@ class _QuestionInput extends StatelessWidget {
 }
 
 class _TimerPill extends StatelessWidget {
-  const _TimerPill({required this.seconds});
+  const _TimerPill({
+    required this.seconds,
+    required this.label,
+  });
 
   final int seconds;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -605,20 +717,41 @@ class _TimerPill extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.micro,
       ),
       decoration: BoxDecoration(
         color: isWarning ? AppColors.warning : AppColors.primarySoft,
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
-      child: Text(
-        '${minutes.toString().padLeft(2, '0')}:${rem.toString().padLeft(2, '0')}',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: isWarning
-              ? Colors.white
-              : AppColors.onColor(AppColors.primarySoft),
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.schedule_rounded,
+            size: 14,
+            color: isWarning
+                ? Colors.white
+                : AppColors.onColor(AppColors.primarySoft),
+          ),
+          const SizedBox(width: AppSpacing.micro),
+          Text(
+            '$label ',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: isWarning
+                  ? Colors.white
+                  : AppColors.onColor(AppColors.primarySoft),
+            ),
+          ),
+          Text(
+            '${minutes.toString().padLeft(2, '0')}:${rem.toString().padLeft(2, '0')}',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: isWarning
+                  ? Colors.white
+                  : AppColors.onColor(AppColors.primarySoft),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -631,6 +764,7 @@ class _QuizResultsView extends StatelessWidget {
     required this.results,
     required this.startedAt,
     required this.endedAt,
+    required this.sessionMode,
   });
 
   final QuizRecord quiz;
@@ -638,6 +772,7 @@ class _QuizResultsView extends StatelessWidget {
   final List<QuizAttemptRecord> results;
   final DateTime startedAt;
   final DateTime endedAt;
+  final String sessionMode;
 
   @override
   Widget build(BuildContext context) {
@@ -666,6 +801,7 @@ class _QuizResultsView extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 Text('${earned.toStringAsFixed(1)} / ${totalPossible.toStringAsFixed(1)}'),
                 Text('${percent.toStringAsFixed(1)}% • $correct/${quiz.questions.length} correct'),
+                Text('Mode: ${sessionMode == 'exam' ? 'Exam' : 'Practice'}'),
                 Text('Time used: ${endedAt.difference(startedAt).inMinutes} min'),
                 if (passed != null)
                   Text(passed ? 'Result: Pass' : 'Result: Not yet passing'),

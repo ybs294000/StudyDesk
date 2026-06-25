@@ -37,6 +37,15 @@ class AppTheme {
     final surfaceVariant = isDark
         ? surface.withValues(alpha: 0.92)
         : background;
+    final elevatedSurface = isDark
+        ? Color.alphaBlend(
+            Colors.white.withValues(alpha: 0.04),
+            surface,
+          )
+        : Color.alphaBlend(
+            Colors.black.withValues(alpha: 0.03),
+            surface,
+          );
     final colorScheme = ColorScheme(
       brightness: brightness,
       primary: primary,
@@ -47,9 +56,7 @@ class AppTheme {
       onError: Colors.white,
       surface: surface,
       onSurface: textPrimary,
-      surfaceContainerHighest: isDark
-          ? const Color(0xFF1B2633)
-          : const Color(0xFFE8EEF4),
+      surfaceContainerHighest: elevatedSurface,
       onSurfaceVariant: textSecondary,
       outline: border,
       outlineVariant: border.withValues(alpha: 0.72),
@@ -173,7 +180,12 @@ class AppTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: isDark ? const Color(0xFF1D2630) : const Color(0xFF1C2834),
+        backgroundColor: isDark
+            ? Color.alphaBlend(
+                Colors.black.withValues(alpha: 0.16),
+                AppColors.surfaceDark,
+              )
+            : AppColors.textPrimaryLight,
         contentTextStyle: TextStyle(color: Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),

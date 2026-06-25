@@ -81,13 +81,13 @@ class SqliteCardsRepository implements CardsRepository {
             back: row['back']! as String,
             hint: row['hint']! as String,
             schedulerVersion:
-                (row['scheduler_version'] as String?) ?? 'adaptive_memory_v2',
+                (row['scheduler_version'] as String?) ?? CardRecord.defaultSchedulerVersion,
             state: (row['study_state'] as String?) ?? 'new',
             reviewCount: (row['review_count'] as int?) ?? 0,
             lapseCount: (row['lapse_count'] as int?) ?? 0,
             intervalDays: (row['interval_days'] as int?) ?? 0,
             ease: ((row['ease'] as num?) ?? 2.5).toDouble(),
-            stability: ((row['stability'] as num?) ?? 0.2).toDouble(),
+            stability: ((row['stability'] as num?) ?? 0.1).toDouble(),
             difficulty: ((row['difficulty'] as num?) ?? 5.0).toDouble(),
             dueAt: row['due_at'] == null
                 ? null

@@ -166,11 +166,14 @@ class QuizSettings {
   }
 
   factory QuizSettings.fromMap(Map<String, dynamic> map) {
+    final rawTimerSeconds = map['timer_seconds'];
     return QuizSettings(
       shuffleQuestions: (map['shuffle_questions'] as bool?) ?? false,
       shuffleOptions: (map['shuffle_options'] as bool?) ?? false,
       timerMode: (map['timer_mode'] as String?) ?? 'none',
-      timerSeconds: (map['timer_seconds'] as int?) ?? 0,
+      timerSeconds: rawTimerSeconds is int
+          ? rawTimerSeconds
+          : ((rawTimerSeconds as num?)?.toInt() ?? 0),
       showFeedback: (map['show_feedback'] as String?) ?? 'after_quiz',
       passingScorePercent: map['passing_score_percent'] as int?,
       marking: QuizMarking.fromMap(

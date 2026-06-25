@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 class CardRecord {
+  static const defaultSchedulerVersion = 'fsrs_v6';
+
   const CardRecord({
     required this.id,
     required this.deckId,
@@ -111,13 +113,13 @@ class CardRecord {
       back: map['back'] as String,
       hint: map['hint'] as String,
       schedulerVersion:
-          (map['schedulerVersion'] as String?) ?? 'adaptive_memory_v2',
+          (map['schedulerVersion'] as String?) ?? defaultSchedulerVersion,
       state: (map['state'] as String?) ?? 'new',
       reviewCount: (map['reviewCount'] as int?) ?? 0,
       lapseCount: (map['lapseCount'] as int?) ?? 0,
       intervalDays: (map['intervalDays'] as int?) ?? 0,
       ease: ((map['ease'] as num?) ?? 2.5).toDouble(),
-      stability: ((map['stability'] as num?) ?? 0.2).toDouble(),
+      stability: ((map['stability'] as num?) ?? 0.1).toDouble(),
       difficulty: ((map['difficulty'] as num?) ?? 5.0).toDouble(),
       dueAt: map['dueAt'] == null
           ? null

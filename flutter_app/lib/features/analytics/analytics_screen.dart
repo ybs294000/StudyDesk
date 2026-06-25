@@ -15,6 +15,12 @@ class AnalyticsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final width = MediaQuery.sizeOf(context).width;
+    final metricsCrossAxisCount = width >= 960
+        ? 3
+        : width >= 640
+            ? 2
+            : 2;
     final summary = ref.watch(dashboardSummaryProvider);
     final overview = ref.watch(libraryOverviewProvider);
     final gamification = ref.watch(gamificationSummaryProvider);
@@ -35,57 +41,69 @@ class AnalyticsScreen extends ConsumerWidget {
             0,
             (sum, deck) => sum + deck.reviewedCount,
           );
+          final metricCards = <Widget>[
+            _MetricCard(
+              title: 'Level',
+              value: '${game.currentLevel}',
+              subtitle: '${game.totalXp} XP earned',
+              color: AppColors.primary,
+            ),
+            _MetricCard(
+              title: 'Due Now',
+              value: '${dashboard.totalDueItems}',
+              subtitle:
+                  '${dashboard.totalDueCards} cards • ${dashboard.totalDueNotes} notes • ${dashboard.totalDueQa} Q&A • ${dashboard.totalDueQuizzes} quizzes',
+              color: AppColors.accent,
+            ),
+            _MetricCard(
+              title: '7-Day Reviewed',
+              value: '${dashboard.sevenDayReviewedCount}',
+              subtitle: 'items reviewed',
+              color: AppColors.primary,
+            ),
+            _MetricCard(
+              title: '7-Day Accuracy',
+              value: dashboard.hasSevenDayQuizData
+                  ? '${(dashboard.sevenDayQuizAccuracyRate * 100).toStringAsFixed(0)}%'
+                  : 'N/A',
+              subtitle: dashboard.hasSevenDayQuizData
+                  ? 'correct / total'
+                  : 'no quiz attempts yet',
+              color: AppColors.info,
+            ),
+            _MetricCard(
+              title: 'Streak',
+              value: '${dashboard.currentStreak}',
+              subtitle: 'days with study activity',
+              color: AppColors.success,
+            ),
+            _MetricCard(
+              title: 'Daily Goal',
+              value: '${game.todayMinutes}/${game.dailyGoalMinutes}',
+              subtitle: game.goalReachedToday
+                  ? 'goal reached today'
+                  : '${game.goalStreakDays} day goal streak',
+              color: AppColors.info,
+            ),
+            _MetricCard(
+              title: 'Pomodoros',
+              value: '${game.weeklyPomodoroCount}',
+              subtitle: '${game.todayPomodoroCount} completed today',
+              color: AppColors.warning,
+            ),
+          ];
 
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.md,
-                children: [
-                  _MetricCard(
-                    title: 'Level',
-                    value: '${game.currentLevel}',
-                    subtitle: '${game.totalXp} XP earned',
-                    color: AppColors.primary,
-                  ),
-                  _MetricCard(
-                    title: 'Due Now',
-                    value: '${dashboard.totalDueCards}',
-                    subtitle: 'cards currently due',
-                    color: AppColors.accent,
-                  ),
-                  _MetricCard(
-                    title: '7-Day Reviewed',
-                    value: '${dashboard.sevenDayReviewedCount}',
-                    subtitle: 'items reviewed',
-                    color: AppColors.primary,
-                  ),
-                  _MetricCard(
-                    title: '7-Day Quiz Accuracy',
-                    value: dashboard.hasSevenDayQuizData
-                        ? '${(dashboard.sevenDayQuizAccuracyRate * 100).toStringAsFixed(0)}%'
-                        : 'N/A',
-                    subtitle: dashboard.hasSevenDayQuizData
-                        ? 'correct / total questions'
-                        : 'no quiz attempts yet',
-                    color: AppColors.info,
-                  ),
-                  _MetricCard(
-                    title: 'Current Streak',
-                    value: '${dashboard.currentStreak}',
-                    subtitle: 'days with study activity',
-                    color: AppColors.success,
-                  ),
-                  _MetricCard(
-                    title: 'Daily Goal',
-                    value: '${game.todayMinutes}/${game.dailyGoalMinutes}',
-                    subtitle: game.goalReachedToday
-                        ? 'goal reached today'
-                        : '${game.goalStreakDays} day goal streak',
-                    color: AppColors.info,
-                  ),
-                ],
+              GridView.count(
+                crossAxisCount: metricsCrossAxisCount,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: AppSpacing.md,
+                crossAxisSpacing: AppSpacing.md,
+                childAspectRatio: width < 420 ? 1.22 : 1.35,
+                children: metricCards,
               ),
               const SizedBox(height: AppSpacing.lg),
               _ChartCard(
@@ -127,7 +145,7 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      '${game.weeklyMinutes} min focused • ${game.weeklyReviewedCount} items reviewed • ${game.weeklySessionCount} sessions',
+                      '${game.weeklyMinutes} min focused • ${game.weeklyPomodoroCount} Pomodoros • ${game.weeklyReviewedCount} items reviewed • ${game.weeklySessionCount} sessions',
                     ),
                     Text(
                       game.hasWeeklyQuizData
@@ -313,7 +331,7 @@ class AnalyticsScreen extends ConsumerWidget {
               ),
             ],
           );
-        },
+          },
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stackTrace) =>
               Center(child: Text('Failed to load progress: $error')),
@@ -393,25 +411,29 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 240,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: color,
-                ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: color,
               ),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ),
+            ),
+            const SizedBox(height: AppSpacing.micro),
+            Text(
+              subtitle,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ),
       ),
     );
@@ -686,6 +708,9 @@ class _SubjectMetricRow extends StatelessWidget {
     final dueCount = metrics?.dueCount ?? 0;
     final deckCount = metrics?.deckCount ?? 0;
     final cardCount = metrics?.cardsCount ?? 0;
+    final noteCount = metrics?.notesCount ?? 0;
+    final qaCount = metrics?.qaCount ?? 0;
+    final quizCount = metrics?.quizCount ?? 0;
     final reviewedToday = metrics?.reviewedToday ?? 0;
     final mastery =
         ((metrics?.masteryRatio ?? 0) * 100).clamp(0, 100).toDouble();
@@ -703,7 +728,7 @@ class _SubjectMetricRow extends StatelessWidget {
                 children: [
                   Text(name, style: Theme.of(context).textTheme.titleMedium),
                   Text(
-                    '$deckCount decks • $cardCount cards • $dueCount due • $reviewedToday today',
+                    '$deckCount decks • $cardCount cards • $noteCount notes • $qaCount Q&A • $quizCount quizzes • $dueCount due • $reviewedToday today',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -745,6 +770,10 @@ String _sessionSummary(StudySessionRecord session) {
       '$dateLabel • ${session.completedCount}/${session.dueCount} correct • quiz',
     'flashcard' =>
       '$dateLabel • ${session.reviewedCount} reviewed • ${session.againCount} again • flashcard',
+    'note' =>
+      '$dateLabel • ${session.reviewedCount} sections read • note review',
+    'pomodoro' =>
+      '$dateLabel • ${session.endedAt.difference(session.startedAt).inMinutes} min focus block • pomodoro',
     _ =>
       '$dateLabel • ${session.reviewedCount} reviewed • ${session.sessionType}',
   };

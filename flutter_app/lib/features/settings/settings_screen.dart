@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/settings/profile_settings_controller.dart';
 import '../../core/settings/theme_mode_controller.dart';
@@ -20,6 +21,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _displayNameController;
   late final TextEditingController _dailyGoalController;
+  late final TextEditingController _pomodoroWorkController;
+  late final TextEditingController _pomodoroBreakController;
   late final TextEditingController _schemaTemplateController;
   String? _lastAppliedDisplayName;
   int? _lastAppliedGoal;
@@ -28,15 +31,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _lastAppliedBackupDirectoryPath;
   bool? _lastAppliedAutoBackupBeforeImports;
   bool? _lastAppliedGamificationEnabled;
+  bool? _lastAppliedFlashcardSpacedRepetitionEnabled;
+  bool? _lastAppliedNoteSpacedRepetitionEnabled;
+  bool? _lastAppliedQaSpacedRepetitionEnabled;
+  bool? _lastAppliedQuizPracticeSchedulingEnabled;
+  bool? _lastAppliedPomodoroEnabled;
+  int? _lastAppliedPomodoroWorkMinutes;
+  int? _lastAppliedPomodoroBreakMinutes;
   String? _backupDirectoryPath;
   bool _autoBackupBeforeImports = true;
   bool _gamificationEnabled = true;
+  bool _flashcardSpacedRepetitionEnabled = true;
+  bool _noteSpacedRepetitionEnabled = true;
+  bool _qaSpacedRepetitionEnabled = true;
+  bool _quizPracticeSchedulingEnabled = true;
+  bool _pomodoroEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _displayNameController = TextEditingController();
     _dailyGoalController = TextEditingController();
+    _pomodoroWorkController = TextEditingController();
+    _pomodoroBreakController = TextEditingController();
     _schemaTemplateController = TextEditingController();
   }
 
@@ -44,6 +61,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void dispose() {
     _displayNameController.dispose();
     _dailyGoalController.dispose();
+    _pomodoroWorkController.dispose();
+    _pomodoroBreakController.dispose();
     _schemaTemplateController.dispose();
     super.dispose();
   }
@@ -61,9 +80,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _selectedSchemaPreset != profile.selectedSchemaPreset ||
         _lastAppliedBackupDirectoryPath != profile.backupDirectoryPath ||
         _lastAppliedAutoBackupBeforeImports != profile.autoBackupBeforeImports ||
-        _lastAppliedGamificationEnabled != profile.gamificationEnabled) {
+        _lastAppliedGamificationEnabled != profile.gamificationEnabled ||
+        _lastAppliedFlashcardSpacedRepetitionEnabled !=
+            profile.flashcardSpacedRepetitionEnabled ||
+        _lastAppliedNoteSpacedRepetitionEnabled !=
+            profile.noteSpacedRepetitionEnabled ||
+        _lastAppliedQaSpacedRepetitionEnabled !=
+            profile.qaSpacedRepetitionEnabled ||
+        _lastAppliedQuizPracticeSchedulingEnabled !=
+            profile.quizPracticeSchedulingEnabled ||
+        _lastAppliedPomodoroEnabled != profile.pomodoroEnabled ||
+        _lastAppliedPomodoroWorkMinutes != profile.pomodoroWorkMinutes ||
+        _lastAppliedPomodoroBreakMinutes != profile.pomodoroBreakMinutes) {
       _displayNameController.text = profile.displayName;
       _dailyGoalController.text = profile.dailyGoalMinutes.toString();
+      _pomodoroWorkController.text = profile.pomodoroWorkMinutes.toString();
+      _pomodoroBreakController.text = profile.pomodoroBreakMinutes.toString();
       _schemaTemplateController.text = profile.customSchemaTemplate;
       _lastAppliedDisplayName = profile.displayName;
       _lastAppliedGoal = profile.dailyGoalMinutes;
@@ -72,9 +104,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _lastAppliedBackupDirectoryPath = profile.backupDirectoryPath;
       _lastAppliedAutoBackupBeforeImports = profile.autoBackupBeforeImports;
       _lastAppliedGamificationEnabled = profile.gamificationEnabled;
+      _lastAppliedFlashcardSpacedRepetitionEnabled =
+          profile.flashcardSpacedRepetitionEnabled;
+      _lastAppliedNoteSpacedRepetitionEnabled =
+          profile.noteSpacedRepetitionEnabled;
+      _lastAppliedQaSpacedRepetitionEnabled =
+          profile.qaSpacedRepetitionEnabled;
+      _lastAppliedQuizPracticeSchedulingEnabled =
+          profile.quizPracticeSchedulingEnabled;
+      _lastAppliedPomodoroEnabled = profile.pomodoroEnabled;
+      _lastAppliedPomodoroWorkMinutes = profile.pomodoroWorkMinutes;
+      _lastAppliedPomodoroBreakMinutes = profile.pomodoroBreakMinutes;
       _backupDirectoryPath = profile.backupDirectoryPath;
       _autoBackupBeforeImports = profile.autoBackupBeforeImports;
       _gamificationEnabled = profile.gamificationEnabled;
+      _flashcardSpacedRepetitionEnabled =
+          profile.flashcardSpacedRepetitionEnabled;
+      _noteSpacedRepetitionEnabled = profile.noteSpacedRepetitionEnabled;
+      _qaSpacedRepetitionEnabled = profile.qaSpacedRepetitionEnabled;
+      _quizPracticeSchedulingEnabled = profile.quizPracticeSchedulingEnabled;
+      _pomodoroEnabled = profile.pomodoroEnabled;
     }
 
     return ListView(
@@ -206,6 +255,103 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
+                  'Study Scheduling',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _flashcardSpacedRepetitionEnabled,
+                  onChanged: (value) {
+                    setState(() => _flashcardSpacedRepetitionEnabled = value);
+                  },
+                  title: const Text('Flashcard decks'),
+                  subtitle: const Text(
+                    'Use the adaptive scheduler to surface due flashcards automatically.',
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _noteSpacedRepetitionEnabled,
+                  onChanged: (value) {
+                    setState(() => _noteSpacedRepetitionEnabled = value);
+                  },
+                  title: const Text('Notes'),
+                  subtitle: const Text(
+                    'Schedule note-reading sessions so important notes return at the right time.',
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _qaSpacedRepetitionEnabled,
+                  onChanged: (value) {
+                    setState(() => _qaSpacedRepetitionEnabled = value);
+                  },
+                  title: const Text('Q&A bank'),
+                  subtitle: const Text(
+                    'Keep long-form recall prompts in the due queue using the same spaced-repetition engine.',
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _quizPracticeSchedulingEnabled,
+                  onChanged: (value) {
+                    setState(() => _quizPracticeSchedulingEnabled = value);
+                  },
+                  title: const Text('Quiz practice'),
+                  subtitle: const Text(
+                    'Recommend quizzes for follow-up practice based on your latest attempts.',
+                  ),
+                ),
+                const Divider(),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _pomodoroEnabled,
+                  onChanged: (value) {
+                    setState(() => _pomodoroEnabled = value);
+                  },
+                  title: const Text('Pomodoro focus timer'),
+                  subtitle: const Text(
+                    'Keep a persistent focus and break timer available throughout the app.',
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _pomodoroWorkController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Focus minutes',
+                          hintText: '25',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: TextField(
+                        controller: _pomodoroBreakController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Break minutes',
+                          hintText: '5',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   'Export',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
@@ -240,6 +386,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       label: const Text('Study Sessions'),
                     ),
                     FilledButton.tonalIcon(
+                      onPressed: _exportStudySessionsAiPackage,
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('Study Sessions for AI'),
+                    ),
+                    FilledButton.tonalIcon(
                       onPressed: _exportQuizAttempts,
                       icon: const Icon(Icons.fact_check_rounded),
                       label: const Text('Quiz Attempts'),
@@ -253,6 +404,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onPressed: _exportWeakTopics,
                       icon: const Icon(Icons.trending_down_rounded),
                       label: const Text('Weak Topics'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _exportWeakSections,
+                      icon: const Icon(Icons.menu_book_rounded),
+                      label: const Text('Weak Sections'),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: _exportWrongQuestionsQuiz,
@@ -288,7 +444,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'StudyDesk is an offline-first study workspace for flashcards, quizzes, and structured Q&A practice.',
+                  'StudyDesk is an offline-first study workspace for flashcards, notes, quizzes, and structured Q&A practice.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -298,7 +454,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'The app currently supports local study organization, timed quiz sessions, markdown-rich content, and JSON-based import flows for bringing study material into a subject.',
+                  'The app currently supports local study organization, Markdown and LaTeX note workflows, timed quiz sessions, spaced review, and JSON-based import and export flows for portable study material.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -379,8 +535,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Use the built-in StudyDesk schema as a stable reference, or switch to your own custom schema. Your custom edits remain preserved even if you view the built-in preset again.',
+                  'Use the built-in StudyDesk schema as the import contract for AI-generated content. The built-in reference covers deck JSON, quiz JSON, and markdown note import guidance.',
                   style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Recommended workflow: copy the AI prompt and schema bundle, paste it into your AI, ask for one output mode only, then import the result back into a subject.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 SegmentedButton<SchemaPreset>(
@@ -424,6 +585,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     spacing: AppSpacing.sm,
                     runSpacing: AppSpacing.sm,
                     children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            const ClipboardData(
+                              text: ProfileSettingsState.builtInSchemaTemplate,
+                            ),
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Built-in schema copied.'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.content_copy_rounded),
+                        label: const Text('Copy Schema'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            const ClipboardData(
+                              text: ProfileSettingsState.builtInAiPromptTemplate,
+                            ),
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('AI prompt copied.'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.psychology_alt_rounded),
+                        label: const Text('Copy AI Prompt'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            const ClipboardData(
+                              text:
+                                  ProfileSettingsState.builtInAiPromptWithSchema,
+                            ),
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('AI prompt and schema copied.'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.inventory_2_rounded),
+                        label: const Text('Copy Prompt + Schema'),
+                      ),
                       FilledButton.tonalIcon(
                         onPressed: () {
                           setState(() {
@@ -515,6 +734,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _saveProfileSettings() async {
     final goal = int.tryParse(_dailyGoalController.text.trim()) ?? 45;
+    final pomodoroWorkMinutes =
+        int.tryParse(_pomodoroWorkController.text.trim()) ?? 25;
+    final pomodoroBreakMinutes =
+        int.tryParse(_pomodoroBreakController.text.trim()) ?? 5;
     try {
       await ref.read(profileSettingsControllerProvider.notifier).save(
             displayName: _displayNameController.text.trim().isEmpty
@@ -531,6 +754,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : _backupDirectoryPath?.trim(),
             autoBackupBeforeImports: _autoBackupBeforeImports,
             gamificationEnabled: _gamificationEnabled,
+            flashcardSpacedRepetitionEnabled:
+                _flashcardSpacedRepetitionEnabled,
+            noteSpacedRepetitionEnabled: _noteSpacedRepetitionEnabled,
+            qaSpacedRepetitionEnabled: _qaSpacedRepetitionEnabled,
+            quizPracticeSchedulingEnabled: _quizPracticeSchedulingEnabled,
+            pomodoroEnabled: _pomodoroEnabled,
+            pomodoroWorkMinutes: pomodoroWorkMinutes.clamp(1, 180).toInt(),
+            pomodoroBreakMinutes: pomodoroBreakMinutes.clamp(1, 60).toInt(),
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -712,6 +943,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _exportStudySessionsAiPackage() async {
+    final json = await ref
+        .read(contentPortabilityServiceProvider)
+        .exportStudySessionsAiPackageJson();
+    await _saveJsonExport(
+      fileName: 'studydesk_study_sessions_ai_package',
+      json: json,
+      successLabel: 'Study sessions AI package exported',
+    );
+  }
+
   Future<void> _exportQuizAttempts() async {
     final json = await ref.read(contentPortabilityServiceProvider).exportQuizAttemptsJson();
     await _saveJsonExport(
@@ -737,6 +979,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       json: json,
       successLabel: 'Weak topics exported',
     );
+  }
+
+  Future<void> _exportWeakSections() async {
+    try {
+      final markdown = await ref
+          .read(contentPortabilityServiceProvider)
+          .exportWeakSectionsMarkdown();
+      final path = await ref.read(exportFileServiceProvider).saveMarkdown(
+            fileName: 'studydesk_weak_sections_review',
+            markdown: markdown,
+          );
+      if (!mounted || path == null) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Weak sections exported to $path')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export weak sections: $error')),
+      );
+    }
   }
 
   Future<void> _exportWrongQuestionsQuiz() async {

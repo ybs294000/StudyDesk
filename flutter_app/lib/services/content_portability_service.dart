@@ -12,8 +12,14 @@ import '../features/decks/data/decks_repository.dart';
 import '../features/decks/domain/deck_record.dart';
 import '../features/gamification/application/gamification_summary_provider.dart';
 import '../features/notes/application/note_markdown_utils.dart';
+import '../features/notes/data/note_review_repository.dart';
 import '../features/notes/data/notes_repository.dart';
 import '../features/notes/domain/note_record.dart';
+import '../features/notes/domain/note_review_record.dart';
+import '../features/qa/data/qa_items_repository.dart';
+import '../features/qa/data/qa_review_repository.dart';
+import '../features/qa/domain/qa_item_record.dart';
+import '../features/qa/domain/qa_review_record.dart';
 import '../features/quizzes/data/quiz_attempts_repository.dart';
 import '../features/quizzes/data/quizzes_repository.dart';
 import '../features/quizzes/domain/quiz_attempt_session_record.dart';
@@ -31,11 +37,22 @@ final contentPortabilityServiceProvider = Provider<ContentPortabilityService>((r
     cardsRepository: ref.read(cardsRepositoryProvider),
     quizzesRepository: ref.read(quizzesRepositoryProvider),
     notesRepository: ref.read(notesRepositoryProvider),
+    noteReviewRepository: ref.read(noteReviewRepositoryProvider),
+    qaItemsRepository: ref.read(qaItemsRepositoryProvider),
+    qaReviewRepository: ref.read(qaReviewRepositoryProvider),
     subjectsRepository: ref.read(subjectsRepositoryProvider),
     unitsRepository: ref.read(subjectUnitsRepositoryProvider),
     studySessionsRepository: ref.read(studySessionsRepositoryProvider),
     quizAttemptsRepository: ref.read(quizAttemptsRepositoryProvider),
     readDailyGoalMinutes: () => ref.read(profileSettingsControllerProvider).dailyGoalMinutes,
+    readFlashcardSchedulingEnabled: () =>
+        ref.read(profileSettingsControllerProvider).flashcardSpacedRepetitionEnabled,
+    readNoteSchedulingEnabled: () =>
+        ref.read(profileSettingsControllerProvider).noteSpacedRepetitionEnabled,
+    readQaSchedulingEnabled: () =>
+        ref.read(profileSettingsControllerProvider).qaSpacedRepetitionEnabled,
+    readQuizSchedulingEnabled: () =>
+        ref.read(profileSettingsControllerProvider).quizPracticeSchedulingEnabled,
   );
 });
 
@@ -45,22 +62,36 @@ class ContentPortabilityService {
     required this.cardsRepository,
     required this.quizzesRepository,
     required this.notesRepository,
+    required this.noteReviewRepository,
+    required this.qaItemsRepository,
+    required this.qaReviewRepository,
     required this.subjectsRepository,
     required this.unitsRepository,
     required this.studySessionsRepository,
     required this.quizAttemptsRepository,
     required this.readDailyGoalMinutes,
+    required this.readFlashcardSchedulingEnabled,
+    required this.readNoteSchedulingEnabled,
+    required this.readQaSchedulingEnabled,
+    required this.readQuizSchedulingEnabled,
   });
 
   final DecksRepository decksRepository;
   final CardsRepository cardsRepository;
   final QuizzesRepository quizzesRepository;
   final NotesRepository notesRepository;
+  final NoteReviewRepository noteReviewRepository;
+  final QaItemsRepository qaItemsRepository;
+  final QaReviewRepository qaReviewRepository;
   final SubjectsRepository subjectsRepository;
   final SubjectUnitsRepository unitsRepository;
   final StudySessionsRepository studySessionsRepository;
   final QuizAttemptsRepository quizAttemptsRepository;
   final int Function() readDailyGoalMinutes;
+  final bool Function() readFlashcardSchedulingEnabled;
+  final bool Function() readNoteSchedulingEnabled;
+  final bool Function() readQaSchedulingEnabled;
+  final bool Function() readQuizSchedulingEnabled;
 
   Future<StudyImportResult> importStudyJson({
     required String subjectId,
@@ -98,6 +129,95 @@ class ContentPortabilityService {
           'Unsupported StudyDesk JSON type: $type. Expected "deck" or "quiz".',
         );
     }
+  }
+
+  Future<DeckImportResult> importDeckCsv({
+    required String subjectId,
+    required String csvSource,
+    String? unitId,
+    String? deckName,
+    String? description,
+    List<String> tags = const [],
+  }) async {
+    final rows = const LineSplitter()
+        .convert(csvSource)
+        .map((line) => line.trimRight())
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    if (rows.isEmpty) {
+      throw const FormatException('CSV import contains no rows.');
+    }
+
+    final parsedCards = <({String front, String back})>[];
+    var startIndex = 0;
+    if (_looksLikeCsvHeader(rows.first)) {
+      startIndex = 1;
+    }
+    for (var index = startIndex; index < rows.length; index += 1) {
+      final columns = _parseCsvLine(rows[index]);
+      if (columns.length < 2) {
+        throw FormatException('CSV row ${index + 1} must have at least two columns.');
+      }
+      final front = columns[0].trim();
+      final back = columns[1].trim();
+      if (front.isEmpty || back.isEmpty) {
+        throw FormatException('CSV row ${index + 1} must include both front and back text.');
+      }
+      parsedCards.add((front: front, back: back));
+    }
+    if (parsedCards.isEmpty) {
+      throw const FormatException('CSV import did not contain any usable flashcards.');
+    }
+
+    final now = DateTime.now();
+    final resolvedDeckName = (deckName == null || deckName.trim().isEmpty)
+        ? 'Imported CSV Deck'
+        : deckName.trim();
+    final deckId = now.microsecondsSinceEpoch.toString();
+    final newDeck = DeckRecord(
+      id: deckId,
+      subjectId: subjectId,
+      unitId: unitId,
+      name: resolvedDeckName,
+      description: description?.trim() ?? '',
+      tags: normalizeTags(tags),
+      createdAt: now,
+      updatedAt: now,
+    );
+    await decksRepository.upsertDeck(newDeck);
+
+    final importedCards = <CardRecord>[];
+    for (var index = 0; index < parsedCards.length; index += 1) {
+      final card = parsedCards[index];
+      importedCards.add(
+        CardRecord(
+          id: '${now.microsecondsSinceEpoch}_csv_$index',
+          deckId: deckId,
+          front: card.front,
+          back: card.back,
+          hint: '',
+          schedulerVersion: CardRecord.defaultSchedulerVersion,
+          state: 'new',
+          reviewCount: 0,
+          lapseCount: 0,
+          intervalDays: 0,
+          ease: 2.5,
+          stability: 0.1,
+          difficulty: 5.0,
+          dueAt: null,
+          lastReviewedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+    }
+    await cardsRepository.upsertCards(importedCards);
+
+    return DeckImportResult(
+      deckId: deckId,
+      deckName: newDeck.name,
+      importedCardCount: importedCards.length,
+    );
   }
 
   Future<DeckImportResult> importDeckJson({
@@ -159,13 +279,13 @@ class ContentPortabilityService {
           front: front,
           back: back,
           hint: ((raw['hint'] as String?) ?? '').trim(),
-          schedulerVersion: 'adaptive_memory_v2',
+          schedulerVersion: CardRecord.defaultSchedulerVersion,
           state: 'new',
           reviewCount: 0,
           lapseCount: 0,
           intervalDays: 0,
           ease: 2.5,
-          stability: 0.2,
+          stability: 0.1,
           difficulty: 5.0,
           dueAt: null,
           lastReviewedAt: null,
@@ -284,6 +404,61 @@ class ContentPortabilityService {
     return null;
   }
 
+  Future<QuizRecord?> buildRetryQuizFromLatestAttempt(String quizId) async {
+    final attempt = await latestAttemptForQuiz(quizId);
+    if (attempt == null) {
+      return null;
+    }
+    final wrongItems = attempt.items
+        .where((item) => !item.isCorrect || item.wasSkipped)
+        .toList();
+    if (wrongItems.isEmpty) {
+      return null;
+    }
+
+    final questions = wrongItems
+        .map(_wrongItemToQuizQuestion)
+        .whereType<QuizQuestion>()
+        .toList();
+    if (questions.isEmpty) {
+      return null;
+    }
+
+    final now = DateTime.now();
+    return QuizRecord(
+      id: now.microsecondsSinceEpoch.toString(),
+      subjectId: attempt.subjectId,
+      unitId: attempt.unitId,
+      name: '${attempt.quizName} Retry Wrong Answers',
+      description:
+          'Generated from incorrect or skipped answers in the latest attempt of ${attempt.quizName}.',
+      tags: normalizeTags([
+        ...attempt.quizTags,
+        'retry',
+        'wrong-answers',
+      ]),
+      settings: const QuizSettings(
+        shuffleQuestions: false,
+        shuffleOptions: false,
+        timerMode: 'none',
+        timerSeconds: 0,
+        showFeedback: 'after_quiz',
+        passingScorePercent: null,
+        marking: QuizMarking(
+          correctPoints: 1,
+          wrongPoints: 0,
+          skippedPoints: 0,
+          negativeMarking: false,
+          partialCredit: true,
+        ),
+        sectionRules: [],
+      ),
+      questions: questions,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
   Future<List<QuizAttemptSessionRecord>> attemptsForSubject(String subjectId) async {
     final attempts = await quizAttemptsRepository.loadAttempts();
     return attempts.where((attempt) => attempt.subjectId == subjectId).toList();
@@ -384,6 +559,106 @@ class ContentPortabilityService {
     return _prettyJson(payload);
   }
 
+  Future<String> exportQaBankJson({
+    required String subjectId,
+  }) async {
+    final subjects = await subjectsRepository.loadSubjects();
+    final subject = subjects.where((item) => item.id == subjectId).firstOrNull;
+    if (subject == null) {
+      throw StateError('Subject $subjectId could not be found for Q&A export.');
+    }
+    final units = (await unitsRepository.loadUnits())
+        .where((unit) => unit.subjectId == subjectId)
+        .toList();
+    final items = (await qaItemsRepository.loadItems())
+        .where((item) => item.subjectId == subjectId)
+        .toList();
+    final reviews = (await qaReviewRepository.loadReviews())
+        .where((review) => review.subjectId == subjectId)
+        .toList();
+
+    final payload = {
+      'studydesk_version': '1.0',
+      'type': 'qa_bank',
+      'export_date': DateTime.now().toUtc().toIso8601String(),
+      'subject': subject.toMap(),
+      'units': units.map((unit) => unit.toMap()).toList(),
+      'items': items.map((item) => item.toMap()).toList(),
+      'reviews': reviews.map((review) => review.toMap()).toList(),
+    };
+    return _prettyJson(payload);
+  }
+
+  Future<String> exportQaBankMarkdown({
+    required String subjectId,
+  }) async {
+    final subjects = await subjectsRepository.loadSubjects();
+    final subject = subjects.where((item) => item.id == subjectId).firstOrNull;
+    if (subject == null) {
+      throw StateError('Subject $subjectId could not be found for Q&A export.');
+    }
+    final units = (await unitsRepository.loadUnits())
+        .where((unit) => unit.subjectId == subjectId)
+        .toList();
+    final items = (await qaItemsRepository.loadItems())
+        .where((item) => item.subjectId == subjectId)
+        .toList()
+      ..sort((a, b) => a.question.toLowerCase().compareTo(b.question.toLowerCase()));
+    final unitById = {for (final unit in units) unit.id: unit};
+
+    final buffer = StringBuffer()
+      ..writeln('# ${subject.name} Q&A Bank')
+      ..writeln()
+      ..writeln('Generated by StudyDesk on ${DateTime.now().toLocal().toIso8601String()}.')
+      ..writeln();
+
+    if (items.isEmpty) {
+      buffer.writeln('No Q&A prompts are available for this subject yet.');
+      return buffer.toString().trimRight();
+    }
+
+    for (var index = 0; index < items.length; index += 1) {
+      final item = items[index];
+      final unitName = item.unitId == null ? null : unitById[item.unitId]?.name;
+      buffer
+        ..writeln('## ${index + 1}. ${item.question}')
+        ..writeln();
+      if (unitName != null || item.tags.isNotEmpty) {
+        if (unitName != null) {
+          buffer.writeln('- Unit: $unitName');
+        }
+        if (item.tags.isNotEmpty) {
+          buffer.writeln('- Tags: ${item.tags.map((tag) => '#$tag').join(', ')}');
+        }
+        buffer.writeln();
+      }
+      buffer
+        ..writeln(item.answerMarkdown.trim())
+        ..writeln()
+        ..writeln('---')
+        ..writeln();
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  Future<String> exportStudySessionsAiPackageJson() async {
+    final sessions = await studySessionsRepository.loadSessions();
+    final analytics = jsonDecode(await exportAnalyticsJson()) as Map<String, dynamic>;
+    final dueItems = jsonDecode(await exportDueItemsJson()) as Map<String, dynamic>;
+    final payload = {
+      'studydesk_version': '1.0',
+      'type': 'ai_study_sessions_package',
+      'export_date': DateTime.now().toUtc().toIso8601String(),
+      'prompt':
+          'Analyze this StudyDesk study history. Identify weak areas, under-reviewed subjects, due-load imbalances, and concrete next-study priorities. Then suggest a focused one-week study plan that fits the recorded pace and due items.',
+      'sessions': sessions.map((session) => session.toMap()).toList(),
+      'analytics': analytics,
+      'dueItems': dueItems,
+    };
+    return _prettyJson(payload);
+  }
+
   Future<String> exportStudySessionsJson() async {
     final sessions = await studySessionsRepository.loadSessions();
     final payload = {
@@ -471,13 +746,28 @@ class ContentPortabilityService {
     final subjects = await subjectsRepository.loadSubjects();
     final decks = await decksRepository.loadDecks();
     final cards = await cardsRepository.loadCards();
+    final notes = await notesRepository.loadNotes();
+    final noteReviews = await noteReviewRepository.loadReviews();
+    final qaItems = await qaItemsRepository.loadItems();
+    final qaReviews = await qaReviewRepository.loadReviews();
+    final quizzes = await quizzesRepository.loadQuizzes();
     final sessions = await studySessionsRepository.loadSessions();
     final attempts = await quizAttemptsRepository.loadAttempts();
     final dashboard = DashboardSummary.fromData(
       subjects: subjects.map((subject) => subject.id).toList(),
       decks: decks.map((deck) => (id: deck.id, subjectId: deck.subjectId)).toList(),
       cards: cards,
+      notes: notes,
+      noteReviews: noteReviews,
+      qaItems: qaItems,
+      qaReviews: qaReviews,
+      quizzes: quizzes,
+      quizAttempts: attempts,
       sessions: sessions,
+      flashcardsEnabled: readFlashcardSchedulingEnabled(),
+      notesEnabled: readNoteSchedulingEnabled(),
+      qaEnabled: readQaSchedulingEnabled(),
+      quizzesEnabled: readQuizSchedulingEnabled(),
     );
     final gamification = GamificationSummary.fromData(
       dashboard: dashboard,
@@ -493,6 +783,10 @@ class ContentPortabilityService {
       'export_date': DateTime.now().toUtc().toIso8601String(),
       'dashboard': {
         'totalDueCards': dashboard.totalDueCards,
+        'totalDueNotes': dashboard.totalDueNotes,
+        'totalDueQa': dashboard.totalDueQa,
+        'totalDueQuizzes': dashboard.totalDueQuizzes,
+        'totalDueItems': dashboard.totalDueItems,
         'totalCards': dashboard.totalCards,
         'studiedTodayCount': dashboard.studiedTodayCount,
         'currentStreak': dashboard.currentStreak,
@@ -522,6 +816,9 @@ class ContentPortabilityService {
               'dueCount': entry.value.dueCount,
               'deckCount': entry.value.deckCount,
               'cardsCount': entry.value.cardsCount,
+              'notesCount': entry.value.notesCount,
+              'qaCount': entry.value.qaCount,
+              'quizCount': entry.value.quizCount,
               'reviewedToday': entry.value.reviewedToday,
               'masteryRatio': entry.value.masteryRatio,
             },
@@ -572,6 +869,12 @@ class ContentPortabilityService {
                 'progressLabel': gamification.nextMilestone!.progressLabel,
               },
       },
+      'studyScheduling': {
+        'flashcardsEnabled': readFlashcardSchedulingEnabled(),
+        'notesEnabled': readNoteSchedulingEnabled(),
+        'qaEnabled': readQaSchedulingEnabled(),
+        'quizzesEnabled': readQuizSchedulingEnabled(),
+      },
       'quizAttemptCount': attempts.length,
     };
     return _prettyJson(payload);
@@ -581,38 +884,140 @@ class ContentPortabilityService {
     final subjects = await subjectsRepository.loadSubjects();
     final decks = await decksRepository.loadDecks();
     final cards = await cardsRepository.loadCards();
+    final notes = await notesRepository.loadNotes();
+    final noteReviews = await noteReviewRepository.loadReviews();
+    final qaItems = await qaItemsRepository.loadItems();
+    final qaReviews = await qaReviewRepository.loadReviews();
+    final quizzes = await quizzesRepository.loadQuizzes();
+    final attempts = await quizAttemptsRepository.loadAttempts();
     final now = DateTime.now();
     final deckById = {for (final deck in decks) deck.id: deck};
     final subjectById = {for (final subject in subjects) subject.id: subject};
+    final reviewByNoteId = {for (final review in noteReviews) review.noteId: review};
+    final reviewByPromptId = {for (final review in qaReviews) review.promptId: review};
+    final latestAttemptByQuiz = <String, QuizAttemptSessionRecord>{};
+    for (final attempt in attempts) {
+      final existing = latestAttemptByQuiz[attempt.quizId];
+      if (existing == null || attempt.endedAt.isAfter(existing.endedAt)) {
+        latestAttemptByQuiz[attempt.quizId] = attempt;
+      }
+    }
 
     final dueItems = <Map<String, dynamic>>[];
-    for (final card in cards) {
-      final deck = deckById[card.deckId];
-      if (deck == null) {
-        continue;
+    if (readFlashcardSchedulingEnabled()) {
+      for (final card in cards) {
+        final deck = deckById[card.deckId];
+        if (deck == null) {
+          continue;
+        }
+        final subject = subjectById[deck.subjectId];
+        if (subject == null) {
+          continue;
+        }
+        final isDue = card.dueAt == null || !card.dueAt!.isAfter(now);
+        if (!isDue) {
+          continue;
+        }
+        dueItems.add({
+          'contentType': 'flashcard',
+          'subjectId': subject.id,
+          'subjectName': subject.name,
+          'deckId': deck.id,
+          'deckName': deck.name,
+          'itemId': card.id,
+          'title': card.front,
+          'hint': card.hint,
+          'dueAt': card.dueAt?.toIso8601String(),
+          'reviewCount': card.reviewCount,
+          'difficulty': card.difficulty,
+          'stability': card.stability,
+          'state': card.state,
+        });
       }
-      final subject = subjectById[deck.subjectId];
-      if (subject == null) {
-        continue;
+    }
+
+    if (readNoteSchedulingEnabled()) {
+      for (final note in notes) {
+        final subject = subjectById[note.subjectId];
+        if (subject == null) {
+          continue;
+        }
+        final review = reviewByNoteId[note.id];
+        final isDue = review == null || review.dueAt == null || !review.dueAt!.isAfter(now);
+        if (!isDue) {
+          continue;
+        }
+        dueItems.add({
+          'contentType': 'note',
+          'subjectId': subject.id,
+          'subjectName': subject.name,
+          'noteId': note.id,
+          'itemId': note.id,
+          'title': note.title,
+          'excerpt': note.excerpt,
+          'dueAt': review?.dueAt?.toIso8601String(),
+          'reviewCount': review?.reviewCount ?? 0,
+          'lastRating': review?.lastRating?.storageValue,
+          'hasPendingSelfNote': review?.pendingSelfNote?.trim().isNotEmpty ?? false,
+          'tags': note.tags,
+        });
       }
-      final isDue = card.dueAt == null || !card.dueAt!.isAfter(now);
-      if (!isDue) {
-        continue;
+    }
+    if (readQaSchedulingEnabled()) {
+      for (final item in qaItems) {
+        final subject = subjectById[item.subjectId];
+        if (subject == null) {
+          continue;
+        }
+        final review = reviewByPromptId[item.id];
+        final isDue = review == null || review.dueAt == null || !review.dueAt!.isAfter(now);
+        if (!isDue) {
+          continue;
+        }
+        dueItems.add({
+          'contentType': 'qa',
+          'subjectId': subject.id,
+          'subjectName': subject.name,
+          'itemId': item.id,
+          'title': item.question,
+          'unitId': item.unitId,
+          'dueAt': review?.dueAt?.toIso8601String(),
+          'reviewCount': review?.reviewCount ?? 0,
+          'difficulty': review?.difficulty ?? 5.0,
+          'stability': review?.stability ?? 0.1,
+          'state': review?.state ?? 'new',
+          'tags': item.tags,
+        });
       }
-      dueItems.add({
-        'subjectId': subject.id,
-        'subjectName': subject.name,
-        'deckId': deck.id,
-        'deckName': deck.name,
-        'cardId': card.id,
-        'front': card.front,
-        'hint': card.hint,
-        'dueAt': card.dueAt?.toIso8601String(),
-        'reviewCount': card.reviewCount,
-        'difficulty': card.difficulty,
-        'stability': card.stability,
-        'state': card.state,
-      });
+    }
+
+    if (readQuizSchedulingEnabled()) {
+      for (final quiz in quizzes) {
+        final subject = subjectById[quiz.subjectId];
+        if (subject == null) {
+          continue;
+        }
+        final latestAttempt = latestAttemptByQuiz[quiz.id];
+        final recommendedDueAt = _recommendedQuizDueAt(latestAttempt);
+        final isDue = recommendedDueAt == null || !recommendedDueAt.isAfter(now);
+        if (!isDue) {
+          continue;
+        }
+        dueItems.add({
+          'contentType': 'quiz',
+          'subjectId': subject.id,
+          'subjectName': subject.name,
+          'quizId': quiz.id,
+          'itemId': quiz.id,
+          'title': quiz.name,
+          'description': quiz.description,
+          'dueAt': recommendedDueAt?.toIso8601String(),
+          'latestAttemptId': latestAttempt?.id,
+          'latestScorePercent': latestAttempt?.scorePercent,
+          'latestPassed': latestAttempt?.passed,
+          'tags': quiz.tags,
+        });
+      }
     }
 
     final payload = {
@@ -667,6 +1072,70 @@ class ContentPortabilityService {
       ],
     };
     return _prettyJson(payload);
+  }
+
+  Future<String> exportWeakSectionsMarkdown() async {
+    final notes = await notesRepository.loadNotes();
+    final reviews = await noteReviewRepository.loadReviews();
+    final reviewByNoteId = {for (final review in reviews) review.noteId: review};
+    final weakEntries = <({NoteRecord note, String heading, String annotation, DateTime? dueAt})>[];
+
+    for (final note in notes) {
+      final review = reviewByNoteId[note.id];
+      if (review == null) {
+        continue;
+      }
+      if (review.lastRating == NoteRecallRating.full &&
+          review.sectionAnnotations.isEmpty) {
+        continue;
+      }
+      for (final entry in review.sectionAnnotations.entries) {
+        if (entry.value.trim().isEmpty) {
+          continue;
+        }
+        weakEntries.add((
+          note: note,
+          heading: entry.key,
+          annotation: entry.value.trim(),
+          dueAt: review.dueAt,
+        ));
+      }
+    }
+
+    weakEntries.sort((a, b) {
+      final noteComparison = a.note.title.compareTo(b.note.title);
+      if (noteComparison != 0) {
+        return noteComparison;
+      }
+      return a.heading.compareTo(b.heading);
+    });
+
+    final buffer = StringBuffer()
+      ..writeln('# Weak Sections Review')
+      ..writeln()
+      ..writeln(
+        'Generated from note-reading sessions and saved section annotations in StudyDesk.',
+      )
+      ..writeln();
+
+    if (weakEntries.isEmpty) {
+      buffer.writeln('No weak note sections have been recorded yet.');
+      return buffer.toString().trimRight();
+    }
+
+    for (final item in weakEntries) {
+      buffer
+        ..writeln('## ${item.note.title} -> ${item.heading}')
+        ..writeln()
+        ..writeln('- Subject note: ${item.note.title}')
+        ..writeln('- Due: ${item.dueAt?.toIso8601String() ?? 'Manual review'}')
+        ..writeln('- Reminder: ${item.annotation}')
+        ..writeln()
+        ..writeln('---')
+        ..writeln();
+    }
+
+    return buffer.toString().trimRight();
   }
 
   Future<String> exportWrongQuestionsAsQuizJson() async {
@@ -770,6 +1239,9 @@ class ContentPortabilityService {
     final cards = await cardsRepository.loadCards();
     final quizzes = await quizzesRepository.loadQuizzes();
     final notes = await notesRepository.loadNotes();
+    final noteReviews = await noteReviewRepository.loadReviews();
+    final qaItems = await qaItemsRepository.loadItems();
+    final qaReviews = await qaReviewRepository.loadReviews();
     final sessions = await studySessionsRepository.loadSessions();
     final attempts = await quizAttemptsRepository.loadAttempts();
 
@@ -783,6 +1255,9 @@ class ContentPortabilityService {
       'cards': cards.map((card) => card.toMap()).toList(),
       'quizzes': quizzes.map((quiz) => quiz.toMap()).toList(),
       'notes': notes.map((note) => note.toMap()).toList(),
+      'noteReviews': noteReviews.map((review) => review.toMap()).toList(),
+      'qaItems': qaItems.map((item) => item.toMap()).toList(),
+      'qaReviews': qaReviews.map((review) => review.toMap()).toList(),
       'studySessions': sessions.map((session) => session.toMap()).toList(),
       'quizAttempts': attempts.map((attempt) => attempt.toMap()).toList(),
     };
@@ -811,6 +1286,15 @@ class ContentPortabilityService {
     final notes = (await notesRepository.loadNotes())
         .where((note) => note.subjectId == subjectId)
         .toList();
+    final noteReviews = (await noteReviewRepository.loadReviews())
+        .where((review) => review.subjectId == subjectId)
+        .toList();
+    final qaItems = (await qaItemsRepository.loadItems())
+        .where((item) => item.subjectId == subjectId)
+        .toList();
+    final qaReviews = (await qaReviewRepository.loadReviews())
+        .where((review) => review.subjectId == subjectId)
+        .toList();
     final sessions = (await studySessionsRepository.loadSessions())
         .where((session) => session.subjectId == subjectId)
         .toList();
@@ -832,6 +1316,9 @@ class ContentPortabilityService {
         'counts': {
           'units': units.length,
           'notes': notes.length,
+          'noteReviews': noteReviews.length,
+          'qaItems': qaItems.length,
+          'qaReviews': qaReviews.length,
           'decks': decks.length,
           'cards': cards.where((card) => decks.any((deck) => deck.id == card.deckId)).length,
           'quizzes': quizzes.length,
@@ -861,12 +1348,35 @@ class ContentPortabilityService {
             .toList(),
       ),
     );
+    _addTextFile(
+      archive,
+      'notes/review_states.json',
+      _prettyJson(noteReviews.map((review) => review.toMap()).toList()),
+    );
+    _addTextFile(
+      archive,
+      'qa/index.json',
+      _prettyJson(qaItems.map((item) => item.toMap()).toList()),
+    );
+    _addTextFile(
+      archive,
+      'qa/review_states.json',
+      _prettyJson(qaReviews.map((review) => review.toMap()).toList()),
+    );
 
     for (final note in notes) {
       _addTextFile(
         archive,
         'notes/${_slugify(note.title, fallback: note.id)}.md',
         note.bodyMarkdown,
+      );
+    }
+
+    for (final item in qaItems) {
+      _addTextFile(
+        archive,
+        'qa/${_slugify(item.question, fallback: item.id)}.md',
+        '# ${item.question}\n\n${item.answerMarkdown}',
       );
     }
 
@@ -903,7 +1413,21 @@ class ContentPortabilityService {
     _addTextFile(
       archive,
       'analytics/subject_summary.json',
-      _prettyJson(await _subjectSummary(subject, units, decks, cards, quizzes, notes, sessions, attempts)),
+      _prettyJson(
+        await _subjectSummary(
+          subject,
+          units,
+          decks,
+          cards,
+          quizzes,
+          notes,
+          noteReviews,
+          qaItems,
+          qaReviews,
+          sessions,
+          attempts,
+        ),
+      ),
     );
 
     final bytes = ZipEncoder().encode(archive);
@@ -920,12 +1444,21 @@ class ContentPortabilityService {
     List<CardRecord> allCards,
     List<QuizRecord> quizzes,
     List<NoteRecord> notes,
+    List<NoteReviewRecord> noteReviews,
+    List<QaItemRecord> qaItems,
+    List<QaReviewRecord> qaReviews,
     List<StudySessionRecord> sessions,
     List<QuizAttemptSessionRecord> attempts,
   ) async {
     final cards = allCards.where((card) => decks.any((deck) => deck.id == card.deckId)).toList();
     final now = DateTime.now();
     final dueCards = cards.where((card) => card.dueAt == null || !card.dueAt!.isAfter(now)).length;
+    final dueNotes = noteReviews
+        .where((review) => review.dueAt == null || !review.dueAt!.isAfter(now))
+        .length;
+    final dueQa = qaReviews
+        .where((review) => review.dueAt == null || !review.dueAt!.isAfter(now))
+        .length;
     final reviewedCards = cards.where((card) => card.reviewCount > 0).length;
 
     return {
@@ -933,12 +1466,17 @@ class ContentPortabilityService {
       'subjectName': subject.name,
       'unitCount': units.length,
       'noteCount': notes.length,
+      'noteReviewCount': noteReviews.length,
+      'qaCount': qaItems.length,
+      'qaReviewCount': qaReviews.length,
       'deckCount': decks.length,
       'cardCount': cards.length,
       'quizCount': quizzes.length,
       'studySessionCount': sessions.length,
       'quizAttemptCount': attempts.length,
       'dueCardCount': dueCards,
+      'dueNoteCount': dueNotes,
+      'dueQaCount': dueQa,
       'masteryRatio': cards.isEmpty ? 0.0 : reviewedCards / cards.length,
       'totalQuizCorrect': attempts.fold<int>(0, (sum, attempt) => sum + attempt.correctCount),
       'totalQuizQuestions': attempts.fold<int>(0, (sum, attempt) => sum + attempt.totalQuestions),
@@ -1154,6 +1692,57 @@ class ContentPortabilityService {
 
   String _prettyJson(Object payload) {
     return const JsonEncoder.withIndent('  ').convert(payload);
+  }
+
+  DateTime? _recommendedQuizDueAt(QuizAttemptSessionRecord? latestAttempt) {
+    if (latestAttempt == null) {
+      return null;
+    }
+    final score = latestAttempt.scorePercent;
+    final intervalDays = switch (score) {
+      < 50 => 1,
+      < 70 => 3,
+      < 90 => 7,
+      _ => 14,
+    };
+    return latestAttempt.endedAt.add(Duration(days: intervalDays));
+  }
+
+  bool _looksLikeCsvHeader(String line) {
+    final columns = _parseCsvLine(line).map((item) => item.trim().toLowerCase()).toList();
+    if (columns.length < 2) {
+      return false;
+    }
+    final first = columns[0];
+    final second = columns[1];
+    return (first == 'front' || first == 'question') &&
+        (second == 'back' || second == 'answer');
+  }
+
+  List<String> _parseCsvLine(String line) {
+    final values = <String>[];
+    final buffer = StringBuffer();
+    var inQuotes = false;
+    for (var index = 0; index < line.length; index += 1) {
+      final char = line[index];
+      if (char == '"') {
+        if (inQuotes && index + 1 < line.length && line[index + 1] == '"') {
+          buffer.write('"');
+          index += 1;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (char == ',' && !inQuotes) {
+        values.add(buffer.toString());
+        buffer.clear();
+        continue;
+      }
+      buffer.write(char);
+    }
+    values.add(buffer.toString());
+    return values;
   }
 }
 

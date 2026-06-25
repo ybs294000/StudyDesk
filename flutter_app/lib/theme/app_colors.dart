@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 enum AppThemePreset {
   studydesk,
   slateBlue,
+  workspaceMono,
 }
 
 extension AppThemePresetX on AppThemePreset {
   String get storageValue => switch (this) {
     AppThemePreset.studydesk => 'studydesk',
     AppThemePreset.slateBlue => 'slate_blue',
+    AppThemePreset.workspaceMono => 'workspace_mono',
   };
 
   String get label => switch (this) {
     AppThemePreset.studydesk => 'StudyDesk',
     AppThemePreset.slateBlue => 'Slate Blue',
+    AppThemePreset.workspaceMono => 'Workspace Mono',
   };
 
   String get description => switch (this) {
@@ -21,11 +24,14 @@ extension AppThemePresetX on AppThemePreset {
       'Teal and amber accents with a calm, focused look.',
     AppThemePreset.slateBlue =>
       'Neutral surfaces with softened blue accents.',
+    AppThemePreset.workspaceMono =>
+      'A monochrome workspace with quiet contrast and minimal color noise.',
   };
 
   static AppThemePreset fromStorage(String? value) {
     return switch (value) {
       'slate_blue' => AppThemePreset.slateBlue,
+      'workspace_mono' => AppThemePreset.workspaceMono,
       _ => AppThemePreset.studydesk,
     };
   }
@@ -43,6 +49,7 @@ class AppColors {
   static _AppPalette get _palette => switch (_preset) {
     AppThemePreset.studydesk => _studyDeskPalette,
     AppThemePreset.slateBlue => _slateBluePalette,
+    AppThemePreset.workspaceMono => _workspaceMonoPalette,
   };
 
   static Color get primary => _palette.primary;
@@ -144,4 +151,21 @@ const _slateBluePalette = _AppPalette(
   borderDark: Color(0xFF2A394D),
   textPrimaryDark: Color(0xFFF2F5FA),
   textSecondaryDark: Color(0xFFADB8C7),
+);
+
+const _workspaceMonoPalette = _AppPalette(
+  primary: Color(0xFF2F3437),
+  primaryStrong: Color(0xFF23272A),
+  primarySoft: Color(0xFFF7F6F3),
+  accent: Color(0xFF8B8A87),
+  backgroundLight: Color(0xFFFFFFFF),
+  surfaceLight: Color(0xFFFFFFFF),
+  borderLight: Color(0xFFE9E9E7),
+  textPrimaryLight: Color(0xFF37352F),
+  textSecondaryLight: Color(0xFF787774),
+  backgroundDark: Color(0xFF2F3438),
+  surfaceDark: Color(0xFF373C3F),
+  borderDark: Color(0xFF4A4F53),
+  textPrimaryDark: Color(0xFFECEAE8),
+  textSecondaryDark: Color(0xFFB3B1AD),
 );

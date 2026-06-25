@@ -19,9 +19,11 @@ class QuizCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timerLabel = quiz.settings.timerMode == 'none'
-        ? 'Untimed'
-        : '${quiz.settings.timerSeconds ~/ 60} min';
+    final timerLabel = switch (quiz.settings.timerMode) {
+      'per_quiz' => '${quiz.settings.timerSeconds ~/ 60} min total',
+      'per_question' => '${quiz.settings.timerSeconds ~/ 60} min each',
+      _ => 'Untimed',
+    };
     final marking = quiz.settings.marking;
 
     return Card(

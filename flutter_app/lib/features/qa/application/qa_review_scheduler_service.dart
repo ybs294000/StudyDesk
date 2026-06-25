@@ -1,12 +1,11 @@
 import 'dart:math';
 
-import '../../cards/domain/card_record.dart';
-import '../domain/study_rating.dart';
+import '../../study/domain/study_rating.dart';
+import '../domain/qa_review_record.dart';
 
-class SpacedRepetitionService {
-  const SpacedRepetitionService();
+class QaReviewSchedulerService {
+  const QaReviewSchedulerService();
 
-  static const _schedulerVersion = 'fsrs_v6';
   static const _weights = <double>[
     0.212,
     1.2931,
@@ -34,102 +33,45 @@ class SpacedRepetitionService {
   static const _maximumIntervalDays = 36500;
   static const _againLearningStep = Duration(minutes: 10);
   static const _hardLearningStep = Duration(hours: 12);
-
   static final double _decay = -_weights[20];
   static final double _factor = (pow(_targetRetention, 1 / _decay) - 1).toDouble();
 
-  CardRecord applyRating({
-    required CardRecord card,
-    required StudyRating rating,
+  QaReviewRecord applyRating({
+    required QaReviewRecord review,
+    required QaRecallRating rating,
     required DateTime reviewedAt,
+    required String? answerSnippet,
   }) {
     final outcome = _scheduleOutcome(
-      card: card,
-      rating: rating,
+      review: review,
+      rating: rating.studyRating,
       reviewedAt: reviewedAt,
     );
-
-    return card.copyWith(
-      schedulerVersion: _schedulerVersion,
-      state: outcome.state,
-      reviewCount: card.reviewCount + 1,
+    return review.copyWith(
+      reviewCount: review.reviewCount + 1,
       lapseCount: outcome.lapseCount,
       intervalDays: outcome.intervalDays,
-      ease: outcome.ease,
+      state: outcome.state,
       stability: outcome.stability,
       difficulty: outcome.difficulty,
       dueAt: outcome.dueAt,
       lastReviewedAt: reviewedAt,
+      lastRating: rating,
+      lastAnswerSnippet: answerSnippet?.trim().isEmpty ?? true ? null : answerSnippet?.trim(),
       updatedAt: reviewedAt,
     );
   }
 
-  int previewIntervalDays(CardRecord card, StudyRating rating) {
-    final updated = _scheduleOutcome(
-      card: card,
-      rating: rating,
-      reviewedAt: DateTime.now(),
-    );
-    return updated.intervalDays;
-  }
-
-  String previewIntervalLabel(CardRecord card, StudyRating rating) {
-    final updated = _scheduleOutcome(
-      card: card,
-      rating: rating,
-      reviewedAt: DateTime.now(),
-    );
-    return _formatDuration(updated.dueAt.difference(DateTime.now()));
-  }
-
-  String dueReasonLabel(CardRecord card, DateTime now) {
-    final dueAt = card.dueAt;
-    if (dueAt == null) {
-      return card.reviewCount == 0
-          ? 'New card ready to learn'
-          : 'Unscheduled review item';
-    }
-    if (card.state == 'learning') {
-      final stepText = !dueAt.isAfter(now)
-          ? 'Learning step due now'
-          : 'Learning step due ${_formatDuration(dueAt.difference(now))}';
-      return '$stepText • stability ${card.stability.toStringAsFixed(1)}d';
-    }
-    final daysSinceReview = card.lastReviewedAt == null
-        ? null
-        : now.difference(card.lastReviewedAt!).inDays;
-    final retrievability = card.lastReviewedAt == null
-        ? null
-        : (_forgettingCurve(
-            _elapsedDays(card, now),
-            _normalizedStability(card.stability),
-          ) *
-              100)
-            .clamp(0, 100)
-            .round();
-    final dueText = !dueAt.isAfter(now)
-        ? 'due now'
-        : 'due ${_formatDuration(dueAt.difference(now))}';
-    final reviewText = daysSinceReview == null
-        ? 'no previous review'
-        : 'last reviewed $daysSinceReview day${daysSinceReview == 1 ? '' : 's'} ago';
-    final recallText = retrievability == null
-        ? 'recall estimate unavailable'
-        : 'predicted recall $retrievability%';
-    return '$dueText • $reviewText • stability ${card.stability.toStringAsFixed(1)}d • $recallText';
-  }
-
-  _ScheduleOutcome _scheduleOutcome({
-    required CardRecord card,
+  _QaScheduleOutcome _scheduleOutcome({
+    required QaReviewRecord review,
     required StudyRating rating,
     required DateTime reviewedAt,
   }) {
-    final previousStability = _normalizedStability(card.stability);
-    final previousDifficulty = _normalizedDifficulty(card.difficulty);
-    final elapsedDays = _elapsedDays(card, reviewedAt);
-    final isNewCard = card.reviewCount == 0 && card.lastReviewedAt == null;
-    final isLearningCard =
-        !isNewCard && (card.state == 'learning' || card.intervalDays <= 0);
+    final previousStability = _normalizedStability(review.stability);
+    final previousDifficulty = _normalizedDifficulty(review.difficulty);
+    final isNewCard = review.reviewCount == 0 && review.lastReviewedAt == null;
+    final isLearningCard = !isNewCard && (review.state == 'learning' || review.intervalDays <= 0);
+    final elapsedDays = _elapsedDays(review, reviewedAt);
     final retrievability = isNewCard || isLearningCard
         ? _targetRetention
         : _forgettingCurve(elapsedDays, previousStability);
@@ -143,7 +85,7 @@ class SpacedRepetitionService {
         reviewedAt: reviewedAt,
         difficulty: difficulty,
         stability: stability,
-        lapseCount: card.lapseCount,
+        lapseCount: review.lapseCount,
       );
     }
 
@@ -156,7 +98,7 @@ class SpacedRepetitionService {
         reviewedAt: reviewedAt,
         difficulty: difficulty,
         stability: stability,
-        lapseCount: rating == StudyRating.again ? card.lapseCount + 1 : card.lapseCount,
+        lapseCount: rating == StudyRating.again ? review.lapseCount + 1 : review.lapseCount,
       );
     }
 
@@ -166,14 +108,13 @@ class SpacedRepetitionService {
         previousStability,
         retrievability,
       );
-      return _ScheduleOutcome(
+      return _QaScheduleOutcome(
         dueAt: reviewedAt.add(_againLearningStep),
         intervalDays: 0,
         state: 'learning',
-        ease: _easeFromDifficulty(difficulty),
         stability: stability,
         difficulty: difficulty,
-        lapseCount: card.lapseCount + 1,
+        lapseCount: review.lapseCount + 1,
       );
     }
 
@@ -210,27 +151,27 @@ class SpacedRepetitionService {
           difficulty: difficulty,
           stability: hardStability,
           intervalDays: hardInterval,
-          lapseCount: card.lapseCount,
+          lapseCount: review.lapseCount,
         ),
       StudyRating.good => _reviewOutcome(
           reviewedAt: reviewedAt,
           difficulty: difficulty,
           stability: goodStability,
           intervalDays: goodInterval,
-          lapseCount: card.lapseCount,
+          lapseCount: review.lapseCount,
         ),
       StudyRating.easy => _reviewOutcome(
           reviewedAt: reviewedAt,
           difficulty: difficulty,
           stability: easyStability,
           intervalDays: easyInterval,
-          lapseCount: card.lapseCount,
+          lapseCount: review.lapseCount,
         ),
-      StudyRating.again => throw StateError('Again should be handled before review scheduling.'),
+      StudyRating.again => throw StateError('Again should already be handled.'),
     };
   }
 
-  _ScheduleOutcome _scheduleFromState({
+  _QaScheduleOutcome _scheduleFromState({
     required StudyRating rating,
     required DateTime reviewedAt,
     required double difficulty,
@@ -239,66 +180,61 @@ class SpacedRepetitionService {
   }) {
     switch (rating) {
       case StudyRating.again:
-        return _ScheduleOutcome(
+        return _QaScheduleOutcome(
           dueAt: reviewedAt.add(_againLearningStep),
           intervalDays: 0,
           state: 'learning',
-          ease: _easeFromDifficulty(difficulty),
           stability: stability,
           difficulty: difficulty,
           lapseCount: lapseCount,
         );
       case StudyRating.hard:
-        return _ScheduleOutcome(
+        return _QaScheduleOutcome(
           dueAt: reviewedAt.add(_hardLearningStep),
           intervalDays: 0,
           state: 'learning',
-          ease: _easeFromDifficulty(difficulty),
           stability: stability,
           difficulty: difficulty,
           lapseCount: lapseCount,
         );
       case StudyRating.good:
-        final goodInterval = _nextIntervalDays(stability);
         return _reviewOutcome(
           reviewedAt: reviewedAt,
           difficulty: difficulty,
           stability: stability,
-          intervalDays: goodInterval,
+          intervalDays: _nextIntervalDays(stability),
           lapseCount: lapseCount,
         );
       case StudyRating.easy:
-        final easyInterval = max(_nextIntervalDays(stability), 2);
         return _reviewOutcome(
           reviewedAt: reviewedAt,
           difficulty: difficulty,
           stability: stability,
-          intervalDays: easyInterval,
+          intervalDays: max(_nextIntervalDays(stability), 2),
           lapseCount: lapseCount,
         );
     }
   }
 
-  _ScheduleOutcome _reviewOutcome({
+  _QaScheduleOutcome _reviewOutcome({
     required DateTime reviewedAt,
     required double difficulty,
     required double stability,
     required int intervalDays,
     required int lapseCount,
   }) {
-    return _ScheduleOutcome(
+    return _QaScheduleOutcome(
       dueAt: reviewedAt.add(Duration(days: intervalDays)),
       intervalDays: intervalDays,
       state: 'review',
-      ease: _easeFromDifficulty(difficulty),
       stability: stability,
       difficulty: difficulty,
       lapseCount: lapseCount,
     );
   }
 
-  double _elapsedDays(CardRecord card, DateTime reviewedAt) {
-    final anchor = card.lastReviewedAt ?? card.createdAt;
+  double _elapsedDays(QaReviewRecord review, DateTime reviewedAt) {
+    final anchor = review.lastReviewedAt ?? reviewedAt;
     final raw = reviewedAt.difference(anchor).inMinutes / (60 * 24);
     return max(0, raw);
   }
@@ -312,9 +248,7 @@ class SpacedRepetitionService {
     };
   }
 
-  double _initStability(int rating) {
-    return max(_weights[rating - 1], 0.1);
-  }
+  double _initStability(int rating) => max(_weights[rating - 1], 0.1);
 
   double _initDifficulty(int rating) {
     final raw = _weights[4] - exp(_weights[5] * (rating - 1)) + 1;
@@ -324,9 +258,7 @@ class SpacedRepetitionService {
   double _nextDifficulty(double difficulty, int rating) {
     final delta = -_weights[6] * (rating - 3);
     final damped = difficulty + _linearDamping(delta, difficulty);
-    return _constrainDifficulty(
-      _meanReversion(_initDifficulty(4), damped),
-    );
+    return _constrainDifficulty(_meanReversion(_initDifficulty(4), damped));
   }
 
   double _linearDamping(double deltaDifficulty, double oldDifficulty) {
@@ -392,14 +324,7 @@ class SpacedRepetitionService {
     return min(max(raw.round(), 1), _maximumIntervalDays);
   }
 
-  double _easeFromDifficulty(double difficulty) {
-    final normalized = ((11 - difficulty) / 10).clamp(0.0, 1.0);
-    return (1.3 + normalized * 1.7).clamp(1.3, 3.0).toDouble();
-  }
-
-  double _constrainDifficulty(double difficulty) {
-    return difficulty.clamp(1.0, 10.0).toDouble();
-  }
+  double _constrainDifficulty(double difficulty) => difficulty.clamp(1.0, 10.0).toDouble();
 
   double _normalizedDifficulty(double difficulty) {
     if (difficulty.isFinite && difficulty > 0) {
@@ -414,32 +339,13 @@ class SpacedRepetitionService {
     }
     return 0.1;
   }
-
-  String _formatDuration(Duration duration) {
-    if (duration.inMinutes < 60) {
-      return '${max(1, duration.inMinutes)}m';
-    }
-    if (duration.inHours < 24) {
-      return '${duration.inHours}h';
-    }
-    if (duration.inDays < 30) {
-      return '${duration.inDays}d';
-    }
-    final weeks = (duration.inDays / 7).round();
-    if (weeks < 8) {
-      return '${max(1, weeks)}w';
-    }
-    final months = (duration.inDays / 30).round();
-    return '${max(1, months)}mo';
-  }
 }
 
-class _ScheduleOutcome {
-  const _ScheduleOutcome({
+class _QaScheduleOutcome {
+  const _QaScheduleOutcome({
     required this.dueAt,
     required this.intervalDays,
     required this.state,
-    required this.ease,
     required this.stability,
     required this.difficulty,
     required this.lapseCount,
@@ -448,7 +354,6 @@ class _ScheduleOutcome {
   final DateTime dueAt;
   final int intervalDays;
   final String state;
-  final double ease;
   final double stability;
   final double difficulty;
   final int lapseCount;

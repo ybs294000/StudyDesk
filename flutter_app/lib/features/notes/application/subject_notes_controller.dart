@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/note_review_repository.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_record.dart';
 import 'note_markdown_utils.dart';
@@ -9,6 +10,8 @@ final subjectNotesControllerProvider = AsyncNotifierProviderFamily<
 
 class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, String> {
   NotesRepository get _repository => ref.read(notesRepositoryProvider);
+  NoteReviewRepository get _reviewRepository =>
+      ref.read(noteReviewRepositoryProvider);
 
   @override
   Future<List<NoteRecord>> build(String arg) async {
@@ -87,6 +90,7 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
     final allNotes = await _repository.loadNotes();
     final updated = allNotes.where((note) => note.id != noteId).toList();
     await _repository.deleteNote(noteId);
+    await _reviewRepository.deleteReview(noteId);
     state = AsyncData(_forSubject(updated, arg));
   }
 

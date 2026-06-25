@@ -21,6 +21,13 @@ class StudyScreen extends ConsumerWidget {
       data: (library) => summary.when(
         data: (dashboard) => gamification.when(
           data: (game) {
+          final estimatedMinutes = (dashboard.totalDueCards * 1) +
+              (dashboard.totalDueNotes * 4) +
+              (dashboard.totalDueQa * 3) +
+              (dashboard.totalDueQuizzes * 8);
+          final focusBlocks = estimatedMinutes == 0
+              ? 0
+              : ((estimatedMinutes / 25).ceil());
           final dueDecks = library.deckSummaries
               .where((deck) => deck.dueCount > 0)
               .toList()
@@ -33,12 +40,51 @@ class StudyScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               _StudyHero(
-                dueCount: dashboard.totalDueCards,
+                dueCount: dashboard.totalDueItems,
                 studiedToday: dashboard.studiedTodayCount,
                 streak: dashboard.currentStreak,
                 dailyGoalLabel: '${game.todayMinutes}/${game.dailyGoalMinutes} min goal',
                 dailyGoalProgress: game.dailyGoalProgress,
                 weeklyXp: game.totalXp,
+                todayPomodoros: game.todayPomodoroCount,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      _QueueChip(label: '${dashboard.totalDueCards} flashcards'),
+                      _QueueChip(label: '${dashboard.totalDueNotes} notes'),
+                      _QueueChip(label: '${dashboard.totalDueQa} Q&A'),
+                      _QueueChip(label: '${dashboard.totalDueQuizzes} quizzes'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Session Planner',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        estimatedMinutes == 0
+                            ? 'Your due queue is light right now. This is a good moment to write notes, import new material, or do a short maintenance review.'
+                            : 'Your current queue is roughly $estimatedMinutes minutes of focused work, which is about $focusBlocks Pomodoro block${focusBlocks == 1 ? '' : 's'}. Start with the heaviest-due deck first, then move to notes and Q&A prompts.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -112,6 +158,7 @@ class _StudyHero extends StatelessWidget {
     required this.dailyGoalLabel,
     required this.dailyGoalProgress,
     required this.weeklyXp,
+    required this.todayPomodoros,
   });
 
   final int dueCount;
@@ -120,6 +167,7 @@ class _StudyHero extends StatelessWidget {
   final String dailyGoalLabel;
   final double dailyGoalProgress;
   final int weeklyXp;
+  final int todayPomodoros;
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +199,7 @@ class _StudyHero extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            '$dailyGoalLabel • $weeklyXp XP earned',
+            '$dailyGoalLabel • $todayPomodoros Pomodoros today • $weeklyXp XP earned',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Colors.white70,
             ),
@@ -235,6 +283,27 @@ class _StudyDeckCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _QueueChip extends StatelessWidget {
+  const _QueueChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label),
     );
   }
 }

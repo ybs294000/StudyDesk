@@ -20,6 +20,9 @@ import '../../decks/presentation/widgets/deck_card.dart';
 import '../../decks/presentation/widgets/deck_editor_sheet.dart';
 import '../../notes/application/subject_notes_controller.dart';
 import '../../notes/domain/note_record.dart';
+import '../../qa/application/subject_qa_controller.dart';
+import '../../qa/data/qa_review_repository.dart';
+import '../../qa/domain/qa_item_record.dart';
 import '../../quizzes/application/subject_quizzes_controller.dart';
 import '../../quizzes/domain/quiz_models.dart';
 import '../../quizzes/presentation/widgets/quiz_card.dart';
@@ -94,20 +97,24 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     final decks = ref.watch(subjectDecksControllerProvider(subject.id));
     final quizzes = ref.watch(subjectQuizzesControllerProvider(subject.id));
     final notes = ref.watch(subjectNotesControllerProvider(subject.id));
+    final qaItems = ref.watch(subjectQaControllerProvider(subject.id));
     final units = ref.watch(subjectUnitsControllerProvider(subject.id));
 
     return units.when(
       data: (unitItems) => decks.when(
         data: (deckItems) => quizzes.when(
           data: (quizItems) => notes.when(
-            data: (noteItems) {
+            data: (noteItems) => qaItems.when(
+            data: (qaPromptItems) {
               final unitFilteredDecks = _filterByUnit(deckItems, (deck) => deck.unitId);
               final unitFilteredQuizzes = _filterByUnit(quizItems, (quiz) => quiz.unitId);
               final unitFilteredNotes = _filterByUnit(noteItems, (note) => note.unitId);
+              final unitFilteredQa = _filterByUnit(qaPromptItems, (item) => item.unitId);
               final availableTags = _collectTags(
                 decks: unitFilteredDecks,
                 quizzes: unitFilteredQuizzes,
                 notes: unitFilteredNotes,
+                qaItems: unitFilteredQa,
               );
               _ensureSelectedTagStillAvailable(availableTags);
               final filteredDecks = _filterByTag(
@@ -121,6 +128,10 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
               final filteredNotes = _filterByTag(
                 unitFilteredNotes,
                 (note) => note.tags,
+              );
+              final filteredQa = _filterByTag(
+                unitFilteredQa,
+                (item) => item.tags,
               );
               return CustomScrollView(
                 slivers: [
@@ -137,6 +148,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                         deckCount: filteredDecks.length,
                         quizCount: filteredQuizzes.length,
                         noteCount: filteredNotes.length,
+                        qaCount: filteredQa.length,
                         activeScopeLabel: _scopeLabel(unitItems),
                         onCreateDeck: () => _openCreateDeck(context, unitItems),
                         onImportJson: _pickAndImportJson,
@@ -144,6 +156,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                         onImportSample: _openSampleImporter,
                         onOpenNotes: () => context.push('/subjects/${subject.id}/notes'),
                         onCreateNote: _createQuickNote,
+                        onOpenQaBank: () => context.push('/subjects/${subject.id}/qa'),
                         onExportBundle: _exportSubjectBundle,
                       ),
                     ),
@@ -209,6 +222,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                         deckCountByUnit: _countByUnit(deckItems, (deck) => deck.unitId),
                         quizCountByUnit: _countByUnit(quizItems, (quiz) => quiz.unitId),
                         noteCountByUnit: _countByUnit(noteItems, (note) => note.unitId),
+                        qaCountByUnit: _countByUnit(qaPromptItems, (item) => item.unitId),
                         onSelectUnit: (unitId) =>
                             setState(() => _selectedUnitFilter = unitId),
                         onEditUnit: (unit) => _openEditUnit(context, unit),
@@ -218,6 +232,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                           deckItems: deckItems,
                           quizItems: quizItems,
                           noteItems: noteItems,
+                          qaItems: qaPromptItems,
                         ),
                       ),
                     ),
@@ -250,6 +265,36 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                         activeScopeLabel: _scopeLabel(unitItems),
                         onOpenWorkspace: () => context.push('/subjects/${subject.id}/notes'),
                         onCreateNote: _createQuickNote,
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      0,
+                      AppSpacing.lg,
+                      AppSpacing.md,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _SectionHeader(
+                        title: 'Q&A Bank',
+                        actionLabel: 'Open Q&A',
+                        onAction: () => context.push('/subjects/${subject.id}/qa'),
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      0,
+                      AppSpacing.lg,
+                      AppSpacing.lg,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _QaOverviewCard(
+                        items: filteredQa,
+                        activeScopeLabel: _scopeLabel(unitItems),
+                        onOpenWorkspace: () => context.push('/subjects/${subject.id}/qa'),
                       ),
                     ),
                   ),
@@ -360,6 +405,9 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stackTrace) => Center(child: Text('Failed to load Q&A prompts: $error')),
+          ),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, stackTrace) => Center(child: Text('Failed to load notes: $error')),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -444,6 +492,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     required List<DeckRecord> decks,
     required List<QuizRecord> quizzes,
     required List<NoteRecord> notes,
+    required List<QaItemRecord> qaItems,
   }) {
     final tags = <String>{};
     for (final deck in decks) {
@@ -458,6 +507,11 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     }
     for (final note in notes) {
       for (final tag in note.tags) {
+        tags.add(tag);
+      }
+    }
+    for (final item in qaItems) {
+      for (final tag in item.tags) {
         tags.add(tag);
       }
     }
@@ -576,6 +630,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     required List<DeckRecord> deckItems,
     required List<QuizRecord> quizItems,
     required List<NoteRecord> noteItems,
+    required List<QaItemRecord> qaItems,
   }) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
@@ -616,6 +671,20 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
         await ref.read(subjectNotesControllerProvider(subject.id).notifier).updateNote(
               note.copyWith(unitId: null),
             );
+      }
+      for (final item in qaItems.where((prompt) => prompt.unitId == unit.id)) {
+        await ref.read(subjectQaControllerProvider(subject.id).notifier).saveItem(
+              item.copyWith(unitId: null, updatedAt: DateTime.now()),
+            );
+        final review = await ref.read(qaReviewRepositoryProvider).loadReview(item.id);
+        if (review != null) {
+          await ref.read(qaReviewRepositoryProvider).upsertReview(
+                review.copyWith(
+                  unitId: null,
+                  updatedAt: DateTime.now(),
+                ),
+              );
+        }
       }
       await ref.read(subjectUnitsControllerProvider(subject.id).notifier).deleteUnit(unit.id);
       if (_selectedUnitFilter == unit.id) {
@@ -953,7 +1022,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     try {
       final picked = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: const ['json'],
+        allowedExtensions: const ['json', 'csv'],
         withData: true,
       );
       if (picked == null || picked.files.isEmpty || !mounted) {
@@ -968,30 +1037,54 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
         );
       }
 
-      await _importJsonBytes(
+      await _importImportedBytes(
         bytes,
         sourceLabel: file.name.isEmpty ? 'selected file' : file.name,
+        extension: (file.extension ?? '').toLowerCase(),
       );
     } catch (error) {
-      _showSnackBar('JSON import failed: $error');
+      _showSnackBar('Import failed: $error');
     }
   }
 
   Future<void> _importDroppedJson(DroppedJsonFile file) async {
     try {
-      await _importJsonBytes(
+      await _importImportedBytes(
         file.bytes,
         sourceLabel: file.name,
+        extension: 'json',
       );
     } catch (error) {
       _showSnackBar('Drop import failed: $error');
     }
   }
 
-  Future<void> _importJsonBytes(
+  Future<void> _importImportedBytes(
     List<int> bytes, {
     required String sourceLabel,
+    required String extension,
   }) async {
+    if (extension == 'csv') {
+      await _maybeCreateSafetySnapshot('csv-import');
+      final result = await ref
+          .read(contentPortabilityServiceProvider)
+          .importDeckCsv(
+            subjectId: subject.id,
+            csvSource: utf8.decode(bytes),
+            unitId: _defaultUnitForCreate(),
+            deckName: sourceLabel.replaceAll(RegExp(r'\.csv$', caseSensitive: false), ''),
+          );
+      ref.invalidate(subjectDecksControllerProvider(subject.id));
+      ref.invalidate(dashboardSummaryProvider);
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(
+        'Imported ${result.deckName} from $sourceLabel with ${result.importedCardCount} cards.',
+      );
+      return;
+    }
+
     await _maybeCreateSafetySnapshot('json-import');
     final jsonSource = utf8.decode(bytes);
     final result = await ref
@@ -1037,6 +1130,7 @@ class _SubjectHero extends StatelessWidget {
     required this.deckCount,
     required this.quizCount,
     required this.noteCount,
+    required this.qaCount,
     required this.activeScopeLabel,
     required this.onCreateDeck,
     required this.onImportJson,
@@ -1044,6 +1138,7 @@ class _SubjectHero extends StatelessWidget {
     required this.onImportSample,
     required this.onOpenNotes,
     required this.onCreateNote,
+    required this.onOpenQaBank,
     required this.onExportBundle,
   });
 
@@ -1051,6 +1146,7 @@ class _SubjectHero extends StatelessWidget {
   final int deckCount;
   final int quizCount;
   final int noteCount;
+  final int qaCount;
   final String activeScopeLabel;
   final VoidCallback onCreateDeck;
   final VoidCallback onImportJson;
@@ -1058,6 +1154,7 @@ class _SubjectHero extends StatelessWidget {
   final VoidCallback onImportSample;
   final VoidCallback onOpenNotes;
   final VoidCallback onCreateNote;
+  final VoidCallback onOpenQaBank;
   final VoidCallback onExportBundle;
 
   @override
@@ -1087,7 +1184,7 @@ class _SubjectHero extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            '$activeScopeLabel • $noteCount note${noteCount == 1 ? '' : 's'}, $deckCount deck${deckCount == 1 ? '' : 's'}, and $quizCount quiz${quizCount == 1 ? '' : 'zes'}.',
+            '$activeScopeLabel • $noteCount note${noteCount == 1 ? '' : 's'}, $qaCount Q&A prompt${qaCount == 1 ? '' : 's'}, $deckCount deck${deckCount == 1 ? '' : 's'}, and $quizCount quiz${quizCount == 1 ? '' : 'zes'}.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -1106,6 +1203,11 @@ class _SubjectHero extends StatelessWidget {
                 label: const Text('Open Notes'),
               ),
               FilledButton.tonalIcon(
+                onPressed: onOpenQaBank,
+                icon: const Icon(Icons.record_voice_over_rounded),
+                label: const Text('Q&A Bank'),
+              ),
+              FilledButton.tonalIcon(
                 onPressed: onCreateNote,
                 icon: const Icon(Icons.edit_note_rounded),
                 label: const Text('Quick Note'),
@@ -1113,7 +1215,7 @@ class _SubjectHero extends StatelessWidget {
               FilledButton.tonalIcon(
                 onPressed: onImportJson,
                 icon: const Icon(Icons.upload_file_rounded),
-                label: const Text('Import JSON'),
+                label: const Text('Import File'),
               ),
               FilledButton.tonalIcon(
                 onPressed: onImportSample,
@@ -1250,6 +1352,7 @@ class _UnitsOverviewCard extends StatelessWidget {
     required this.deckCountByUnit,
     required this.quizCountByUnit,
     required this.noteCountByUnit,
+    required this.qaCountByUnit,
     required this.onSelectUnit,
     required this.onEditUnit,
     required this.onDeleteUnit,
@@ -1259,6 +1362,7 @@ class _UnitsOverviewCard extends StatelessWidget {
   final Map<String, int> deckCountByUnit;
   final Map<String, int> quizCountByUnit;
   final Map<String, int> noteCountByUnit;
+  final Map<String, int> qaCountByUnit;
   final ValueChanged<String> onSelectUnit;
   final ValueChanged<SubjectUnitRecord> onEditUnit;
   final ValueChanged<SubjectUnitRecord> onDeleteUnit;
@@ -1298,7 +1402,7 @@ class _UnitsOverviewCard extends StatelessWidget {
                 leading: const Icon(Icons.folder_copy_outlined),
                 title: Text(unit.name),
                 subtitle: Text(
-                  '${noteCountByUnit[unit.id] ?? 0} notes • ${deckCountByUnit[unit.id] ?? 0} decks • ${quizCountByUnit[unit.id] ?? 0} quizzes'
+                  '${noteCountByUnit[unit.id] ?? 0} notes • ${qaCountByUnit[unit.id] ?? 0} Q&A • ${deckCountByUnit[unit.id] ?? 0} decks • ${quizCountByUnit[unit.id] ?? 0} quizzes'
                   '${unit.description.isEmpty ? '' : '\n${unit.description}'}',
                 ),
                 isThreeLine: unit.description.isNotEmpty,
@@ -1389,6 +1493,67 @@ class _NotesOverviewCard extends StatelessWidget {
                     ),
                 ],
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QaOverviewCard extends StatelessWidget {
+  const _QaOverviewCard({
+    required this.items,
+    required this.activeScopeLabel,
+    required this.onOpenWorkspace,
+  });
+
+  final List<QaItemRecord> items;
+  final String activeScopeLabel;
+  final VoidCallback onOpenWorkspace;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    items.isEmpty ? 'No Q&A prompts in $activeScopeLabel' : 'Recent Q&A in $activeScopeLabel',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                FilledButton.tonal(
+                  onPressed: onOpenWorkspace,
+                  child: const Text('Workspace'),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              items.isEmpty
+                  ? 'Create long-form recall prompts for descriptive exams and theory-heavy revision.'
+                  : 'Open the Q&A workspace to refine prompts, organize them by unit and tag, and run recall sessions.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              for (final item in items.take(3))
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.record_voice_over_rounded),
+                  title: Text(item.question),
+                  subtitle: Text(
+                    item.excerpt,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
           ],
         ),
       ),

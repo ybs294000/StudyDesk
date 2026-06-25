@@ -20,13 +20,13 @@
     <img src="https://img.shields.io/badge/Platform-Web%20%7C%20Windows%20%7C%20Android%20%7C%20Linux-1F2937?style=for-the-badge&labelColor=2D3748" alt="Platform: Web, Windows, Android, and Linux" />
   </a>
   <a>
-    <img src="https://img.shields.io/badge/version-0.5.0-blue?style=for-the-badge&labelColor=2D3748" alt="Version: 0.5.0" />
+    <img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge&labelColor=2D3748" alt="Version: 1.0.0" />
   </a>
 </p>
 
 <p align="center">
   <a>
-    <img src="https://img.shields.io/badge/Status-Active%20Alpha-F59E0B?style=flat-square&labelColor=2D3748" alt="Status: Active Alpha" />
+    <img src="https://img.shields.io/badge/Status-Local--First%20Build-0F766E?style=flat-square&labelColor=2D3748" alt="Status: Local-First Build" />
   </a>
   <a>
     <img src="https://img.shields.io/badge/License-MIT-6C5CE7?style=flat-square&labelColor=2D3748" alt="License: MIT" />
@@ -70,10 +70,13 @@ StudyDesk currently supports a complete local study workflow with the following 
 - Optional unit grouping inside a subject for chapters, modules, or topics
 - Tag-based organization for decks, quizzes, and notes
 - Flashcard study with adaptive spaced repetition and review logging
-- Quiz authoring with timed sessions, negative marking, and multiple question types
+- Quiz authoring with practice mode, exam mode, timed sessions, negative marking, and multiple question types
 - Keyword-graded Q&A practice with model answers and threshold-based scoring
+- Subject-level Q&A bank with recall sessions and review scheduling
 - Markdown and LaTeX rendering in notes, flashcards, and quiz content
+- Reading-focused note review and section recall support
 - Local analytics covering activity, streaks, due load, and subject-level progress
+- Persistent Pomodoro focus timing tied into goals and analytics
 - Local-only persistence across web, Windows, Android, and Linux
 - Optional backup-folder snapshots before imports on supported native targets
 
@@ -103,13 +106,16 @@ Persistence is platform-specific but remains local-first:
 
 - Create, edit, and delete Markdown notes inside a subject
 - Live Markdown preview with LaTeX rendering
+- Reading mode for distraction-light review
+- Section recall mode driven by Markdown headings
 - Wiki links between notes and backlink discovery
 - Outline extraction from headings
 - Search notes by title, content, and tags
 - Import Markdown files into a subject
 - Export notes as Markdown files
+- Schedule note reviews into the due queue
 - Create flashcard drafts from selected note content
-- Generate note-based Q&A recall quizzes from structured headings
+- Generate note-based Q&A recall prompts from structured headings
 
 ### Flashcards
 
@@ -121,7 +127,9 @@ Persistence is platform-specific but remains local-first:
 - Render Markdown in card content
 - Review cards with adaptive scheduling based on stability and difficulty
 - Log review sessions for analytics
+- Keyboard shortcuts for reveal and rating on desktop and web
 - Export decks as JSON
+- Import decks from CSV as well as JSON
 
 ### Quizzes
 
@@ -129,10 +137,13 @@ Persistence is platform-specific but remains local-first:
 - Assign quizzes to optional units
 - Add tags to quizzes
 - Configure timer mode, shuffle behavior, passing score, and marking rules
+- Choose total-timer or per-question timer behavior
 - Add, edit, and delete questions inside each quiz
+- Start sessions in practice mode or exam mode
 - Run timed quiz sessions with local scoring and review output
 - Use negative marking and skipped-answer handling when needed
 - Support structured Q&A practice alongside objective questions
+- Keyboard shortcuts for navigation on desktop and web
 - Export quiz definitions, latest attempts, and AI review packages
 
 ### Analytics
@@ -144,13 +155,18 @@ Persistence is platform-specific but remains local-first:
 - Due forecast buckets
 - Seven-day activity visualization
 - Streak tracking
+- XP, milestones, daily-goal progress, and weekly summaries
+- Pomodoro completion counts and focus-minute tracking
 
 ### Settings and App Controls
 
 - Theme selection
+- Built-in StudyDesk, Slate Blue, and Workspace Mono theme families
 - Profile and display preferences
 - Data-safety settings for backup folders and import snapshots
 - Gamification visibility toggle
+- Spaced-repetition toggles for flashcards, notes, Q&A, and quiz practice
+- Pomodoro timer settings
 - Shell layout controls including left-pane behavior
 - About information inside the app
 
@@ -178,6 +194,8 @@ The Q&A flow is implemented as a structured grading mode. Current support includ
 
 This makes short-answer practice auditable and reviewable rather than a plain free-response field.
 
+Alongside quiz-level short-answer grading, StudyDesk also includes a subject-level Q&A bank for long-form recall practice with self-marked sessions and scheduled follow-up review.
+
 ---
 
 ## Import and Portability
@@ -191,11 +209,33 @@ StudyDesk currently supports:
 - Quiz attempt export
 - Subject bundle ZIP export
 - Entire-library, analytics, weak-topics, due-items, and wrong-question exports
+- Study-session and study-session AI package exports
+- Q&A bank JSON export and markdown review export
 - Subject-level sample import from bundled assets
 - Browser file-picker import
-- Web drag-and-drop JSON import
+- Web drag-and-drop import where supported
 - Markdown note import
 - Markdown note export
+
+### AI Schema Workflow
+
+StudyDesk includes a built-in JSON schema template in the in-app Settings screen.
+
+Use it like this:
+
+1. Open `Settings -> Schema Editor`
+2. Copy `AI Prompt` or `Prompt + Schema`
+3. Paste it into your AI tool
+4. Ask for exactly one output mode at a time
+5. Import the returned deck JSON, quiz JSON, or markdown note into a subject
+
+If the AI output follows the StudyDesk schema exactly, the resulting import should work without manual cleanup.
+
+The built-in reference now covers:
+
+- Deck JSON
+- Quiz JSON
+- Markdown note guidance for note import
 
 Implemented content portability is documented in [docs/JSON_FORMAT_SPEC.md](./docs/JSON_FORMAT_SPEC.md).
 
@@ -226,6 +266,7 @@ Default seeded content includes:
 - sample deck assets
 - practice quiz assets
 - short-answer quiz content for keyword grading
+- starter notes and structured Q&A-ready content
 
 The starter set is intended to exercise:
 
@@ -271,9 +312,12 @@ Feature areas currently present in the app include:
 - `features/decks`
 - `features/cards`
 - `features/notes`
+- `features/pomodoro`
+- `features/qa`
 - `features/study`
 - `features/quizzes`
 - `features/analytics`
+- `features/gamification`
 - `features/library`
 - `features/settings`
 - `features/dashboard`
@@ -370,26 +414,30 @@ The packaging script resets stale Flutter Windows plugin symlinks before buildin
 
 - Supported as an active testing target
 - Uses browser-local persistence
-- Supports JSON import through file picking and drag-and-drop
+- Supports JSON and CSV import through file picking
+- Supports drag-and-drop import where the browser environment allows it
 
 ### Windows
 
 - Supported as a local desktop target
 - Uses local persistence suitable for offline study sessions
 - Supports portable packaging through the included PowerShell script
+- Includes the same core note, flashcard, quiz, Q&A, analytics, and export flows as the web build
 
 ### Android
 
 - Supported as a local mobile target
 - Uses local SQLite-backed persistence
-- Supports file-picker JSON import
+- Supports file-picker import for study content
 - Requires Android Studio, Android SDK, and a connected device or emulator
+- Includes the same core study flows as the desktop targets, adapted to mobile navigation
 
 ### Linux
 
 - Supported through the generated Linux desktop target
 - Uses local SQLite-backed persistence
 - Packaging is handled through the included Linux artifact scripts
+- Intended to match the Windows desktop feature level when built from a Linux environment
 
 ---
 
@@ -423,13 +471,27 @@ The packaging script resets stale Flutter Windows plugin symlinks before buildin
 2. Optionally assign the quiz to a unit.
 3. Create a quiz or import a quiz JSON file.
 4. Add questions through the quiz detail screen.
-5. Start the quiz and review the results locally.
+5. Choose practice mode or exam mode, then review the results locally.
+
+### Q&A Bank
+
+1. Open a subject.
+2. Open the Q&A section.
+3. Create prompts manually or generate them from note headings.
+4. Start a recall session, reveal the model answer, and self-mark the result.
+5. Let the scheduler bring difficult prompts back into the due queue.
+
+### Pomodoro
+
+1. Open Settings and adjust focus and break lengths if needed.
+2. Use the timer in the app header while working through notes, flashcards, or quizzes.
+3. Completed focus blocks are recorded in analytics automatically.
 
 ### Import Testing
 
 1. Open a subject.
-2. Use `Import JSON` to load a local deck or quiz file.
-3. On web, drag and drop a JSON file into the subject import zone if preferred.
+2. Use `Import File` to load a local deck, quiz, or CSV file.
+3. On web, drag and drop a supported file into the subject import zone if preferred.
 4. On Windows and Android, use the same import button with the platform file picker.
 5. Confirm the imported content appears under the expected subject and unit.
 
@@ -465,7 +527,7 @@ Included packaging helpers:
 | Local Storage | SQLite, SharedPreferences |
 | Content Rendering | flutter_markdown_plus, flutter_markdown_plus_latex, flutter_math_fork |
 | File Import | file_picker, flutter_dropzone |
-| Platforms in Active Use | Web, Windows, Android |
+| Platforms in Active Use | Web, Windows, Android, Linux |
 | Language | Dart |
 
 ---
@@ -487,9 +549,9 @@ More detail is available in [SECURITY.md](./SECURITY.md).
 
 - Study data sync across devices is not part of the current local-first build
 - Web persistence is tied to the browser profile and origin
-- Web has drag-and-drop import in addition to file-picker import, while Windows and Android currently use file-picker import only
+- Web has drag-and-drop import in addition to file-picker import, while native targets rely on platform file pickers
 - Web does not use a user-selected backup folder because browser storage and download flows are platform constrained
-- The app is still in active alpha, so schema evolution and content-portability workflows are still being hardened
+- Cross-device sync and cloud collaboration are intentionally out of scope for the current local-first build
 - Note export is currently Markdown-first; richer document export formats are still to come
 
 ---

@@ -77,7 +77,7 @@ class _SubjectsHomeContent extends ConsumerWidget {
               sliver: SliverToBoxAdapter(
                 child: _SummaryCard(
                   subjectCount: subjects.length,
-                  dueCount: dashboard.totalDueCards,
+                  dueCount: dashboard.totalDueItems,
                   studiedTodayCount: dashboard.studiedTodayCount,
                   streak: dashboard.currentStreak,
                   totalXp: game.totalXp,
@@ -456,6 +456,8 @@ class _RecentSessionsCard extends StatelessWidget {
       'quiz' => '$dateLabel • ${session.completedCount}/${session.dueCount} correct',
       'flashcard' =>
         '$dateLabel • ${session.reviewedCount} reviewed • ${session.againCount} again',
+      'note' => '$dateLabel • ${session.reviewedCount} sections read • note review',
+      'qa' => '$dateLabel • ${session.reviewedCount} prompt${session.reviewedCount == 1 ? '' : 's'} reviewed • long-form recall',
       _ => '$dateLabel • ${session.reviewedCount} reviewed',
     };
   }

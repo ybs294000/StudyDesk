@@ -232,30 +232,53 @@ Current import validation must ensure:
 6. Every deck card contains non-empty `front` and `back`
 7. Every short-answer quiz question intended for keyword grading contains at least one required keyword concept
 
-## AI Generation Prompt Template
+## AI Generation Workflow
 
-Use a prompt like this when asking an AI assistant to generate importable StudyDesk deck content:
+StudyDesk exposes a built-in AI handoff bundle in `Settings -> Schema Editor`.
+
+Recommended usage:
+
+1. Copy `AI Prompt` or `Prompt + Schema`
+2. Paste it into your AI tool
+3. Ask for exactly one output mode at a time
+4. Import the returned file into the relevant subject
+
+Current supported AI output targets are:
+
+- `deck` JSON
+- `quiz` JSON
+- raw Markdown note content
+
+Important constraints:
+
+- Return JSON only for deck and quiz output
+- Do not wrap JSON in markdown fences
+- Keep field names exactly as documented
+- Use only implemented question types
+- For Markdown notes, return raw Markdown only
+
+### Example Deck Prompt
 
 ```text
 Create a StudyDesk deck JSON file about [TOPIC].
 Return valid JSON only.
-Use this exact structure:
+Use the exact StudyDesk deck schema.
+Include at least 10 cards with clear front and back text.
+```
 
-{
-  "studydesk_version": "1.0",
-  "export_date": "TODAY_DATE",
-  "type": "deck",
-  "content": {
-    "name": "[DECK NAME]",
-    "description": "[SHORT DESCRIPTION]",
-    "cards": [
-      {
-        "id": "card_001",
-        "front": "Question here",
-        "back": "Answer here",
-        "hint": null
-      }
-    ]
-  }
-}
+### Example Quiz Prompt
+
+```text
+Create a StudyDesk quiz JSON file about [TOPIC].
+Return valid JSON only.
+Use the exact StudyDesk quiz schema.
+Choose only supported question types and include all required grading fields.
+```
+
+### Example Note Prompt
+
+```text
+Create a StudyDesk Markdown note about [TOPIC].
+Return raw Markdown only.
+Use ## headings for major sections and keep the structure study-ready.
 ```

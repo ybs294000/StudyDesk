@@ -8,6 +8,13 @@ const _schemaPresetKey = 'schema_preset_v1';
 const _backupDirectoryPathKey = 'backup_directory_path_v1';
 const _autoBackupImportsKey = 'auto_backup_imports_v1';
 const _gamificationEnabledKey = 'gamification_enabled_v1';
+const _flashcardSpacedRepetitionKey = 'flashcard_spaced_repetition_v1';
+const _noteSpacedRepetitionKey = 'note_spaced_repetition_v1';
+const _qaSpacedRepetitionKey = 'qa_spaced_repetition_v1';
+const _quizPracticeSchedulingKey = 'quiz_practice_scheduling_v1';
+const _pomodoroEnabledKey = 'pomodoro_enabled_v1';
+const _pomodoroWorkMinutesKey = 'pomodoro_work_minutes_v1';
+const _pomodoroBreakMinutesKey = 'pomodoro_break_minutes_v1';
 
 final profileSettingsControllerProvider =
     NotifierProvider<ProfileSettingsController, ProfileSettingsState>(
@@ -32,6 +39,17 @@ class ProfileSettingsController extends Notifier<ProfileSettingsState> {
       backupDirectoryPath: prefs.getString(_backupDirectoryPathKey),
       autoBackupBeforeImports: prefs.getBool(_autoBackupImportsKey) ?? true,
       gamificationEnabled: prefs.getBool(_gamificationEnabledKey) ?? true,
+      flashcardSpacedRepetitionEnabled:
+          prefs.getBool(_flashcardSpacedRepetitionKey) ?? true,
+      noteSpacedRepetitionEnabled:
+          prefs.getBool(_noteSpacedRepetitionKey) ?? true,
+      qaSpacedRepetitionEnabled:
+          prefs.getBool(_qaSpacedRepetitionKey) ?? true,
+      quizPracticeSchedulingEnabled:
+          prefs.getBool(_quizPracticeSchedulingKey) ?? true,
+      pomodoroEnabled: prefs.getBool(_pomodoroEnabledKey) ?? true,
+      pomodoroWorkMinutes: prefs.getInt(_pomodoroWorkMinutesKey) ?? 25,
+      pomodoroBreakMinutes: prefs.getInt(_pomodoroBreakMinutesKey) ?? 5,
       customSchemaTemplate:
           prefs.getString(_customSchemaTemplateKey) ??
           ProfileSettingsState.defaultCustomSchemaTemplate,
@@ -46,6 +64,13 @@ class ProfileSettingsController extends Notifier<ProfileSettingsState> {
     required String? backupDirectoryPath,
     required bool autoBackupBeforeImports,
     required bool gamificationEnabled,
+    required bool flashcardSpacedRepetitionEnabled,
+    required bool noteSpacedRepetitionEnabled,
+    required bool qaSpacedRepetitionEnabled,
+    required bool quizPracticeSchedulingEnabled,
+    required bool pomodoroEnabled,
+    required int pomodoroWorkMinutes,
+    required int pomodoroBreakMinutes,
   }) async {
     state = ProfileSettingsState(
       displayName: displayName,
@@ -55,6 +80,13 @@ class ProfileSettingsController extends Notifier<ProfileSettingsState> {
       backupDirectoryPath: backupDirectoryPath,
       autoBackupBeforeImports: autoBackupBeforeImports,
       gamificationEnabled: gamificationEnabled,
+      flashcardSpacedRepetitionEnabled: flashcardSpacedRepetitionEnabled,
+      noteSpacedRepetitionEnabled: noteSpacedRepetitionEnabled,
+      qaSpacedRepetitionEnabled: qaSpacedRepetitionEnabled,
+      quizPracticeSchedulingEnabled: quizPracticeSchedulingEnabled,
+      pomodoroEnabled: pomodoroEnabled,
+      pomodoroWorkMinutes: pomodoroWorkMinutes,
+      pomodoroBreakMinutes: pomodoroBreakMinutes,
     );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_displayNameKey, displayName);
@@ -68,6 +100,25 @@ class ProfileSettingsController extends Notifier<ProfileSettingsState> {
     }
     await prefs.setBool(_autoBackupImportsKey, autoBackupBeforeImports);
     await prefs.setBool(_gamificationEnabledKey, gamificationEnabled);
+    await prefs.setBool(
+      _flashcardSpacedRepetitionKey,
+      flashcardSpacedRepetitionEnabled,
+    );
+    await prefs.setBool(
+      _noteSpacedRepetitionKey,
+      noteSpacedRepetitionEnabled,
+    );
+    await prefs.setBool(
+      _qaSpacedRepetitionKey,
+      qaSpacedRepetitionEnabled,
+    );
+    await prefs.setBool(
+      _quizPracticeSchedulingKey,
+      quizPracticeSchedulingEnabled,
+    );
+    await prefs.setBool(_pomodoroEnabledKey, pomodoroEnabled);
+    await prefs.setInt(_pomodoroWorkMinutesKey, pomodoroWorkMinutes);
+    await prefs.setInt(_pomodoroBreakMinutesKey, pomodoroBreakMinutes);
   }
 }
 
@@ -80,6 +131,13 @@ class ProfileSettingsState {
     required this.backupDirectoryPath,
     required this.autoBackupBeforeImports,
     required this.gamificationEnabled,
+    required this.flashcardSpacedRepetitionEnabled,
+    required this.noteSpacedRepetitionEnabled,
+    required this.qaSpacedRepetitionEnabled,
+    required this.quizPracticeSchedulingEnabled,
+    required this.pomodoroEnabled,
+    required this.pomodoroWorkMinutes,
+    required this.pomodoroBreakMinutes,
   });
 
   final String displayName;
@@ -89,6 +147,13 @@ class ProfileSettingsState {
   final String? backupDirectoryPath;
   final bool autoBackupBeforeImports;
   final bool gamificationEnabled;
+  final bool flashcardSpacedRepetitionEnabled;
+  final bool noteSpacedRepetitionEnabled;
+  final bool qaSpacedRepetitionEnabled;
+  final bool quizPracticeSchedulingEnabled;
+  final bool pomodoroEnabled;
+  final int pomodoroWorkMinutes;
+  final int pomodoroBreakMinutes;
 
   String get activeSchemaTemplate => selectedSchemaPreset == SchemaPreset.defaultSchema
       ? builtInSchemaTemplate
@@ -97,6 +162,34 @@ class ProfileSettingsState {
   bool get isUsingCustomSchema => selectedSchemaPreset == SchemaPreset.custom;
 
   static const builtInSchemaTemplate = '''
+STUDYDESK AI IMPORT KIT
+
+Use one supported output mode at a time.
+Return only the payload for the chosen mode.
+
+SUPPORTED MODE 1: DECK JSON
+
+{
+  "studydesk_version": "1.0",
+  "export_date": "2026-06-25T00:00:00Z",
+  "type": "deck",
+  "content": {
+    "name": "Topic Deck",
+    "description": "Short deck description",
+    "tags": ["topic", "flashcards"],
+    "cards": [
+      {
+        "id": "card_001",
+        "front": "Question here",
+        "back": "Answer here",
+        "hint": "Optional hint here"
+      }
+    ]
+  }
+}
+
+SUPPORTED MODE 2: QUIZ JSON
+
 {
   "studydesk_version": "1.0",
   "type": "quiz",
@@ -152,6 +245,77 @@ class ProfileSettingsState {
     ]
   }
 }
+
+SUPPORTED MODE 3: NOTE MARKDOWN
+
+Notes are imported as plain Markdown files, not JSON.
+Use headings consistently. Prefer ## for major sections.
+If generated by AI, this frontmatter helps section recall mode:
+
+---
+section-level: h2
+---
+
+## Section Title
+Study content here.
+
+## Another Section
+More content here.
+
+SUPPORTED MODE 4: Q&A GENERATION SOURCE
+
+StudyDesk can generate subject-level Q&A items from Markdown notes after import.
+If you want direct app import today, produce either:
+- deck JSON
+- quiz JSON
+- markdown note content
+''';
+
+  static const builtInAiPromptTemplate = '''
+Create StudyDesk-compatible study content.
+
+Important rules:
+1. Choose exactly one output mode: deck JSON, quiz JSON, or markdown note.
+2. Return only the final payload.
+3. Do not add explanations.
+4. Do not wrap JSON in markdown code fences.
+5. Keep every required field exactly as shown in the StudyDesk schema.
+6. Use valid JSON with double-quoted keys and strings.
+7. If output mode is markdown note, return raw Markdown only.
+8. Make the content realistic, complete, and ready to import.
+
+When creating a deck JSON:
+- top-level "type" must be "deck"
+- include "content.name"
+- include at least one card
+- every card must have non-empty "front" and "back"
+
+When creating a quiz JSON:
+- top-level "type" must be "quiz"
+- include "content.name"
+- include at least one question
+- use supported question types only: "mcq", "true_false", "fill_blank", "short_answer"
+- for "mcq", include "options" and "correct_index"
+- for "true_false", include "correct_answer"
+- for "short_answer", include "model_answer" and at least one keyword concept
+
+When creating a markdown note:
+- use Markdown only
+- prefer ## headings for major sections
+- include clear, study-ready structure
+- use LaTeX only where needed
+
+Follow the StudyDesk schema reference exactly.
+''';
+
+  static const builtInAiPromptWithSchema = '''
+AI TASK
+
+$builtInAiPromptTemplate
+
+SCHEMA REFERENCE
+
+$builtInSchemaTemplate
 ''';
 
   static const defaultCustomSchemaTemplate = builtInSchemaTemplate;
@@ -165,6 +329,13 @@ class ProfileSettingsState {
       backupDirectoryPath: null,
       autoBackupBeforeImports: true,
       gamificationEnabled: true,
+      flashcardSpacedRepetitionEnabled: true,
+      noteSpacedRepetitionEnabled: true,
+      qaSpacedRepetitionEnabled: true,
+      quizPracticeSchedulingEnabled: true,
+      pomodoroEnabled: true,
+      pomodoroWorkMinutes: 25,
+      pomodoroBreakMinutes: 5,
     );
   }
 }

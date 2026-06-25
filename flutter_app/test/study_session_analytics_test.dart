@@ -3,6 +3,10 @@ import 'package:studydesk/features/cards/domain/card_record.dart';
 import 'package:studydesk/features/dashboard/application/dashboard_summary_provider.dart';
 import 'package:studydesk/features/decks/domain/deck_record.dart';
 import 'package:studydesk/features/library/application/library_overview_provider.dart';
+import 'package:studydesk/features/notes/domain/note_record.dart';
+import 'package:studydesk/features/notes/domain/note_review_record.dart';
+import 'package:studydesk/features/quizzes/domain/quiz_attempt_session_record.dart';
+import 'package:studydesk/features/quizzes/domain/quiz_models.dart';
 import 'package:studydesk/features/study/domain/study_session_record.dart';
 import 'package:studydesk/features/subjects/domain/subject_record.dart';
 
@@ -35,7 +39,7 @@ void main() {
         front: 'Q',
         back: 'A',
         hint: '',
-        schedulerVersion: 'adaptive_memory_v2',
+        schedulerVersion: CardRecord.defaultSchedulerVersion,
         state: 'review',
         reviewCount: 1,
         lapseCount: 0,
@@ -54,6 +58,12 @@ void main() {
       subjects: const ['subject_1'],
       decks: const [(id: 'deck_1', subjectId: 'subject_1')],
       cards: [card()],
+      notes: const <NoteRecord>[],
+      noteReviews: const <NoteReviewRecord>[],
+      qaItems: const [],
+      qaReviews: const [],
+      quizzes: const <QuizRecord>[],
+      quizAttempts: const <QuizAttemptSessionRecord>[],
       sessions: [
         StudySessionRecord(
           id: 'quiz_session_1',
@@ -68,6 +78,10 @@ void main() {
           dueCount: 5,
         ),
       ],
+      flashcardsEnabled: true,
+      notesEnabled: true,
+      qaEnabled: true,
+      quizzesEnabled: true,
     );
 
     expect(summary.studiedTodayCount, 5);
