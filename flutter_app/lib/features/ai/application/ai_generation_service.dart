@@ -31,7 +31,7 @@ final aiGenerationServiceProvider = Provider<AiGenerationService>((ref) {
 class AiGenerationService {
   AiGenerationService({
     required this.ref,
-    required Dio this._dio,
+    required this._dio,
   });
 
   final Ref ref;
