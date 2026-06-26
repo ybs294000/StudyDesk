@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/security/studydesk_security.dart';
 import '../../../core/widgets/markdown_content.dart';
 import '../../../theme/app_spacing.dart';
 import '../../cards/application/deck_cards_controller.dart';
@@ -139,7 +140,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
                   onOpenReader: () {
                     context.push('/subjects/${widget.subjectId}/notes/${widget.noteId}/read');
                   },
-                  onImportFromAi: _importStructuredMarkdownFromAi,
+                  onImportFromAi: _openAiWorkspace,
                   onImportBody: _replaceBodyFromMarkdown,
                   onExportMarkdown: _exportMarkdown,
                   onCreateCard: () => _createCardFromSelection(decksAsync),
@@ -325,7 +326,15 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
       if (bytes == null) {
         throw const FormatException('The selected Markdown file could not be read.');
       }
-      final markdown = utf8.decode(bytes);
+      StudyDeskSecurity.ensureImportSize(
+        bytes,
+        label: file.name.isEmpty ? 'Markdown file' : file.name,
+        maxBytes: StudyDeskSecurity.maxMarkdownImportBytes,
+      );
+      final markdown = StudyDeskSecurity.decodeUtf8(
+        bytes,
+        label: file.name.isEmpty ? 'Markdown file' : file.name,
+      );
       setState(() {
         if (_titleController.text.trim().isEmpty) {
           _titleController.text = deriveTitleFromMarkdown(markdown);
@@ -338,158 +347,11 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
     }
   }
 
-  Future<void> _importStructuredMarkdownFromAi() async {
-    final initialPrompt = '''
-Format your response as Markdown. Use ## for each major section. Add this at the top:
----
-section-level: h2
----
-''';
-    final pasteController = TextEditingController();
-    final importedMarkdown = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) {
-          final markdown = pasteController.text;
-          final sectionLevel = resolveSectionHeadingLevel(markdown);
-          final sections = extractSections(markdown);
-          return SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.sm,
-                AppSpacing.md,
-                AppSpacing.md + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SizedBox(
-                height: MediaQuery.sizeOf(context).height * 0.86,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Import from AI',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Copy the prompt guide below into your AI tool, then paste the returned Markdown here for section-aware import.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(
-                          color: Theme.of(context).dividerColor,
-                        ),
-                      ),
-                      child: SelectableText(
-                        initialPrompt.trim(),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontFamily: 'Courier New',
-                              height: 1.45,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Expanded(
-                      child: TextField(
-                        controller: pasteController,
-                        onChanged: (_) => setModalState(() {}),
-                        expands: true,
-                        maxLines: null,
-                        minLines: null,
-                        textAlignVertical: TextAlignVertical.top,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontFamily: 'Courier New',
-                              height: 1.5,
-                            ),
-                        decoration: const InputDecoration(
-                          alignLabelWithHint: true,
-                          labelText: 'Paste Markdown response',
-                          hintText: 'Paste AI-generated Markdown here.',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    if (markdown.trim().isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.34),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Section preview',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              sections.isEmpty
-                                  ? 'No complete sections detected yet. Add headings like ## Topic to create section recall blocks.'
-                                  : 'Detected ${sections.length} section${sections.length == 1 ? '' : 's'} at heading level h$sectionLevel.',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            if (sections.isNotEmpty) ...[
-                              const SizedBox(height: AppSpacing.sm),
-                              Wrap(
-                                spacing: AppSpacing.xs,
-                                runSpacing: AppSpacing.xs,
-                                children: [
-                                  for (final section in sections.take(6))
-                                    Chip(label: Text(section.heading)),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                        const Spacer(),
-                        FilledButton(
-                          onPressed: markdown.trim().isEmpty
-                              ? null
-                              : () => Navigator.of(context).pop(markdown),
-                          child: const Text('Use Markdown'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-    pasteController.dispose();
-    if (importedMarkdown == null || importedMarkdown.trim().isEmpty || !mounted) {
+  Future<void> _openAiWorkspace() async {
+    if (!mounted) {
       return;
     }
-
-    setState(() {
-      if (_titleController.text.trim().isEmpty ||
-          _titleController.text.trim() == 'Untitled Note') {
-        _titleController.text = deriveTitleFromMarkdown(importedMarkdown);
-      }
-      _bodyController.text = importedMarkdown;
-    });
-    _showMessage('Imported structured Markdown into this note.');
+    context.push('/subjects/${widget.subjectId}/ai?kind=note&noteId=${widget.noteId}');
   }
 
   Future<void> _exportMarkdown() async {
@@ -958,7 +820,7 @@ class _EditorTopBar extends StatelessWidget {
             FilledButton.tonalIcon(
               onPressed: onImportFromAi,
               icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('Import from AI'),
+              label: const Text('AI Workspace'),
             ),
             FilledButton.tonalIcon(
               onPressed: onImportBody,

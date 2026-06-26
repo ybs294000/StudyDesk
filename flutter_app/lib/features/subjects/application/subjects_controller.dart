@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/studydesk_security.dart';
 import '../data/subjects_repository.dart';
 import '../domain/subject_record.dart';
 
@@ -25,7 +26,11 @@ class SubjectsController extends AsyncNotifier<List<SubjectRecord>> {
     final now = DateTime.now();
     final subject = SubjectRecord(
       id: now.microsecondsSinceEpoch.toString(),
-      name: name.trim(),
+      name: StudyDeskSecurity.sanitizeSingleLine(
+        name,
+        field: 'Subject name',
+        maxLength: StudyDeskSecurity.maxSubjectNameLength,
+      ),
       emoji: emoji,
       colorValue: colorValue,
       createdAt: now,
@@ -39,12 +44,20 @@ class SubjectsController extends AsyncNotifier<List<SubjectRecord>> {
 
   Future<void> updateSubject(SubjectRecord subject) async {
     final current = await future;
+    final normalized = subject.copyWith(
+      name: StudyDeskSecurity.sanitizeSingleLine(
+        subject.name,
+        field: 'Subject name',
+        maxLength: StudyDeskSecurity.maxSubjectNameLength,
+      ),
+      updatedAt: DateTime.now(),
+    );
     final updated = current
-        .map((item) => item.id == subject.id ? subject : item)
+        .map((item) => item.id == normalized.id ? normalized : item)
         .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     state = AsyncData(updated);
-    await _repository.upsertSubject(subject);
+    await _repository.upsertSubject(normalized);
   }
 
   Future<void> deleteSubject(String id) async {

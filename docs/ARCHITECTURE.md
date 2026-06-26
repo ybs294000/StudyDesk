@@ -1,38 +1,37 @@
 # Architecture
 
-Last updated: 2026-06-21
+Last updated: 2026-06-26
 
-This document describes the architecture currently present in the StudyDesk repository and the implementation direction the project follows.
+This document describes the current application architecture used in StudyDesk.
 
 ## Overview
 
 StudyDesk uses a feature-first Flutter structure with Riverpod for state management, GoRouter for navigation, and repository-backed local persistence.
 
-The current product focus is:
+The architecture is intentionally local-first:
 
-- local-first study workflows
-- platform-aware persistence
-- explicit content portability
-- concrete feature modules instead of generic placeholder shells
+- study workflows do not require sign-in
+- persistence is device-local by default
+- import and export flows are explicit product features rather than hidden implementation details
 
 ## Core Stack
 
 - Flutter for the application framework
-- Riverpod for application state and feature controllers
+- Riverpod for providers, controllers, and app services
 - GoRouter for navigation
-- SQLite-backed persistence on native platforms
-- SharedPreferences-backed repository fallback on web
+- SQLite on native targets
+- SharedPreferences-backed persistence on web
 
-## Current Folder Structure
+## Directory Layout
 
 ```text
 flutter_app/lib/
 ├── app/
-│   ├── router/
-│   └── studydesk_app.dart
+│   └── router/
 ├── core/
-│   ├── bootstrap/
 │   ├── database/
+│   ├── navigation/
+│   ├── security/
 │   ├── settings/
 │   └── widgets/
 ├── features/
@@ -40,135 +39,80 @@ flutter_app/lib/
 │   ├── cards/
 │   ├── dashboard/
 │   ├── decks/
+│   ├── gamification/
 │   ├── library/
+│   ├── notes/
+│   ├── pomodoro/
+│   ├── qa/
 │   ├── quizzes/
 │   ├── settings/
 │   ├── study/
-│   └── subjects/
+│   ├── subjects/
+│   └── units/
 ├── services/
 └── theme/
 ```
 
-## Layering Model
+## Layering Pattern
 
-Each feature generally follows this structure:
+Most feature areas follow a lightweight internal split:
 
-- `domain/` for app-facing models and records
-- `data/` for storage repositories
-- `application/` for Riverpod controllers and feature services
+- `domain/` for app-facing records and value types
+- `data/` for persistence repositories
+- `application/` for controllers and feature services
 - `presentation/` for screens and widgets
 
-This keeps persistence concerns, feature rules, and UI composition separated while still remaining lightweight enough for a single-app repository.
+This keeps storage, business rules, and UI composition separate without forcing excessive ceremony into a single-app repository.
 
 ## Navigation
 
-Navigation is defined in `flutter_app/lib/app/router/app_router.dart` and rendered inside a shared app shell.
+Top-level app navigation is routed through a shared shell.
 
-Current top-level routes:
+Primary destinations:
 
-- `/` Home
-- `/library`
-- `/study`
-- `/analytics`
-- `/settings`
+- home
+- library
+- study
+- analytics
+- settings
 
-Current nested content routes:
-
-- `/subjects/:subjectId`
-- `/subjects/:subjectId/decks/:deckId`
-- `/subjects/:subjectId/decks/:deckId/study`
-- `/subjects/:subjectId/quizzes/:quizId`
-- `/subjects/:subjectId/quizzes/:quizId/session`
-
-## State Management
-
-StudyDesk uses Riverpod providers with a clear split between mutation, read models, and shared services.
-
-Common patterns in the current codebase:
-
-- `AsyncNotifier` and family notifiers for repository-backed CRUD features
-- `Provider` for repositories and shared services
-- `FutureProvider` for aggregated dashboard and bootstrap flows
-
-This keeps write paths explicit and allows screens to remain thin.
+Nested routes are used for subject workspaces, note editing, deck detail, flashcard study, quiz detail, quiz sessions, and Q&A sessions.
 
 ## Persistence Design
 
-### Native Platforms
+### Native targets
 
-Native persistence uses SQLite-backed repositories for structured study data such as:
+Native targets use SQLite-backed repositories. The database layer is responsible for:
 
-- subjects
-- decks
-- cards
-- quizzes
-- study sessions
+- schema creation and migration
+- startup integrity checks
+- legacy data migration
+- stable local persistence for study content and progress
 
 ### Web
 
-Web currently uses repository fallback implementations backed by `SharedPreferences`.
-
-This exists to support browser-based testing without relying on native SQLite assumptions. The web persistence layer is real, but it is intentionally simpler than the native path and remains local to the browser profile and origin.
-
-## Bootstrap and Starter Content
-
-On a clean first run, the app uses `core/bootstrap/app_bootstrap_service.dart` to seed starter content.
-
-Bootstrap responsibilities:
-
-- detect whether the app already contains local content
-- create a starter subject when appropriate
-- import bundled sample decks and quizzes
-- avoid reseeding after local content is already present
-
-This makes the repository immediately testable without requiring manual content entry.
+The web target uses a SharedPreferences-backed local path. This keeps browser testing functional without assuming native SQLite support.
 
 ## Content Portability
 
-StudyDesk currently supports structured JSON import for:
-
-- decks
-- quizzes
-
-Deck export is also implemented.
-
-Import responsibilities are centralized in `services/content_portability_service.dart`, which:
-
-- validates wrapper structure and implemented content types
-- routes imports to the correct domain path
-- enforces short-answer grading requirements for quiz imports
-
-## Quiz and Q&A Architecture
-
-The quiz module is implemented as a first-class feature area rather than a thin extension of flashcards.
+Import and export logic is centralized under `services/`.
 
 Current responsibilities include:
 
-- quiz metadata and question persistence
-- question authoring UI
-- timed quiz sessions
-- question-type-specific input rendering
-- scoring and result review
-- keyword-based grading for Q&A-style short answers
+- deck import and export
+- quiz import and export
+- subject bundle export
+- analytics and session export
+- safety snapshot generation
+- validation and sanitization of imported file content before persistence
 
-Keyword grading is separated into `features/quizzes/application/quiz_grading_service.dart` so the grading logic is reusable, testable, and not embedded directly into screen code.
+## Security-Oriented Architecture Notes
 
-## Theming and Shared UI
+Security-sensitive concerns are handled close to the boundaries where they matter:
 
-Shared visual primitives live under `theme/` and `core/widgets/`.
+- file ingress is validated before parsing
+- imported text is sanitized before persistence
+- export filenames are normalized before file-save operations
+- database startup performs integrity checks before ordinary repository use
 
-Current shared UI responsibilities include:
-
-- app shell and navigation frame
-- markdown rendering
-- web drag-and-drop JSON import surface
-- common spacing and color definitions
-
-## Architectural Constraints
-
-The repository currently follows a few practical constraints:
-
-- core study flows must remain usable without sign-in
-- local storage remains the default source of truth
-- public documentation should reflect implemented behavior accurately
-- future expansion points may exist in the structure, but they should not be documented as shipped features unless they are actually usable
+This keeps the application ready for a future bring-your-own-key AI layer without assuming that local-only study data can be treated casually.

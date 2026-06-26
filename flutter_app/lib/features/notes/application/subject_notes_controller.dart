@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/studydesk_security.dart';
 import '../data/note_review_repository.dart';
 import '../data/notes_repository.dart';
 import '../domain/note_record.dart';
@@ -29,7 +30,12 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
     final allNotes = await _repository.loadNotes();
     final now = DateTime.now();
     final normalizedTitle = _ensureUniqueTitle(
-      title: title.trim().isEmpty ? 'Untitled Note' : title.trim(),
+      title: StudyDeskSecurity.sanitizeSingleLine(
+        title,
+        field: 'Note title',
+        maxLength: StudyDeskSecurity.maxShortTitleLength,
+        fallback: 'Untitled Note',
+      ),
       subjectId: subjectId,
       notes: allNotes,
     );
@@ -38,7 +44,11 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
       subjectId: subjectId,
       unitId: unitId,
       title: normalizedTitle,
-      bodyMarkdown: bodyMarkdown,
+      bodyMarkdown: StudyDeskSecurity.sanitizeMultiline(
+        bodyMarkdown,
+        field: 'Note body',
+        maxLength: StudyDeskSecurity.maxNoteBodyLength,
+      ),
       tags: normalizeTags(tags),
       createdAt: now,
       updatedAt: now,
@@ -68,13 +78,23 @@ class SubjectNotesController extends FamilyAsyncNotifier<List<NoteRecord>, Strin
   Future<NoteRecord> updateNote(NoteRecord note) async {
     final allNotes = await _repository.loadNotes();
     final normalizedTitle = _ensureUniqueTitle(
-      title: note.title.trim().isEmpty ? 'Untitled Note' : note.title.trim(),
+      title: StudyDeskSecurity.sanitizeSingleLine(
+        note.title,
+        field: 'Note title',
+        maxLength: StudyDeskSecurity.maxShortTitleLength,
+        fallback: 'Untitled Note',
+      ),
       subjectId: note.subjectId,
       notes: allNotes,
       noteId: note.id,
     );
     final normalizedNote = note.copyWith(
       title: normalizedTitle,
+      bodyMarkdown: StudyDeskSecurity.sanitizeMultiline(
+        note.bodyMarkdown,
+        field: 'Note body',
+        maxLength: StudyDeskSecurity.maxNoteBodyLength,
+      ),
       tags: normalizeTags(note.tags),
       updatedAt: DateTime.now(),
     );

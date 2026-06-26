@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/security/studydesk_security.dart';
+
 final exportFileServiceProvider = Provider<ExportFileService>((ref) {
   return const ExportFileService();
 });
@@ -87,10 +89,14 @@ class ExportFileService {
 
   static String _ensureExtension(String fileName, String extension) {
     final normalized = extension.startsWith('.') ? extension.substring(1) : extension;
-    final lowerName = fileName.toLowerCase();
+    final sanitizedName = StudyDeskSecurity.sanitizeFileName(
+      fileName,
+      fallback: 'studydesk-export',
+    );
+    final lowerName = sanitizedName.toLowerCase();
     if (lowerName.endsWith('.$normalized')) {
-      return fileName;
+      return sanitizedName;
     }
-    return '$fileName.$normalized';
+    return '$sanitizedName.$normalized';
   }
 }

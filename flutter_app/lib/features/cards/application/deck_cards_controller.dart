@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/studydesk_security.dart';
 import '../data/cards_repository.dart';
 import '../domain/card_record.dart';
 
@@ -30,9 +31,23 @@ class DeckCardsController extends FamilyAsyncNotifier<List<CardRecord>, String> 
       CardRecord(
         id: now.microsecondsSinceEpoch.toString(),
         deckId: deckId,
-        front: front.trim(),
-        back: back.trim(),
-        hint: hint.trim(),
+        front: StudyDeskSecurity.sanitizeMultiline(
+          front,
+          field: 'Card front',
+          maxLength: StudyDeskSecurity.maxCardFaceLength,
+          allowEmpty: false,
+        ),
+        back: StudyDeskSecurity.sanitizeMultiline(
+          back,
+          field: 'Card back',
+          maxLength: StudyDeskSecurity.maxCardFaceLength,
+          allowEmpty: false,
+        ),
+        hint: StudyDeskSecurity.sanitizeMultiline(
+          hint,
+          field: 'Card hint',
+          maxLength: StudyDeskSecurity.maxCardHintLength,
+        ),
         schedulerVersion: CardRecord.defaultSchedulerVersion,
         state: 'new',
         reviewCount: 0,
@@ -53,8 +68,30 @@ class DeckCardsController extends FamilyAsyncNotifier<List<CardRecord>, String> 
 
   Future<void> updateCard(CardRecord card) async {
     final allCards = await _repository.loadCards();
-    final updated = allCards.map((item) => item.id == card.id ? card : item).toList();
-    await _repository.upsertCard(card);
+    final normalized = card.copyWith(
+      front: StudyDeskSecurity.sanitizeMultiline(
+        card.front,
+        field: 'Card front',
+        maxLength: StudyDeskSecurity.maxCardFaceLength,
+        allowEmpty: false,
+      ),
+      back: StudyDeskSecurity.sanitizeMultiline(
+        card.back,
+        field: 'Card back',
+        maxLength: StudyDeskSecurity.maxCardFaceLength,
+        allowEmpty: false,
+      ),
+      hint: StudyDeskSecurity.sanitizeMultiline(
+        card.hint,
+        field: 'Card hint',
+        maxLength: StudyDeskSecurity.maxCardHintLength,
+      ),
+      updatedAt: DateTime.now(),
+    );
+    final updated = allCards
+        .map((item) => item.id == normalized.id ? normalized : item)
+        .toList();
+    await _repository.upsertCard(normalized);
     state = AsyncData(_forDeck(updated, arg));
   }
 

@@ -46,8 +46,7 @@ GoogleService-Info.plist
 .DS_Store
 
 # Private project memo
-.studydesk-private-memo.md
-.studydesk-push-guideline.md
+.studydesk-*.md
 
 # Internal assistant/reference material
 docs/*_INSTRUCTIONS.md

@@ -1,106 +1,97 @@
 # Project Status
 
-Last updated: 2026-06-21
+Last updated: 2026-06-26
 
-This document describes the current implementation state of StudyDesk in the repository.
+This document summarizes the current implementation state of StudyDesk in the repository.
 
-## Snapshot
+## Summary
 
-StudyDesk is in active alpha development, but the repository already contains a real local study workflow across subjects, flashcards, quizzes, Q&A grading, analytics, and content portability.
+StudyDesk is a local-first study workspace built with Flutter for web, Windows, Android, and Linux. The current codebase supports notes, flashcards, quizzes, Q&A recall practice, analytics, exports, and platform-aware persistence.
 
-The app is no longer limited to flashcard-only foundations. Quiz authoring, quiz sessions, and keyword-graded short-answer practice are implemented in the Flutter application.
+The repository is beyond the initial prototype stage. Core study workflows are implemented and testable, but the project is still evolving toward a more production-ready 1.x baseline.
 
 ## Implemented
 
-### App Foundation
+### Core App Foundation
 
-- Flutter app shell with persistent navigation
+- Flutter application shell with top-level navigation
 - Riverpod-based state management
-- Theme mode persistence
-- Profile and display preference persistence
-- Feature-first folder structure
+- theme and profile preference persistence
+- platform-aware layout for mobile and desktop-class targets
 
-### Subjects and Library
+### Subjects and Units
 
-- Subject CRUD
-- Subject detail workspaces
-- Deck and quiz grouping under a subject
-- Sample import into a selected subject
-- JSON import into a selected subject
-- Web drag-and-drop JSON import
+- subject CRUD
+- optional unit or chapter grouping inside subjects
+- uncategorized content support inside a subject
+
+### Notes
+
+- Markdown note editing
+- LaTeX rendering in note content
+- note import from Markdown files
+- note export as Markdown
+- wiki-link style note references and backlink discovery
+- reading mode and section recall mode
+- note review scheduling and note-review persistence
 
 ### Flashcards
 
-- Deck CRUD
-- Card CRUD
-- Flashcard study sessions
-- Again / Hard / Good / Easy rating flow
-- Local scheduling metadata persistence
-- Study-session logging
-- Deck export to JSON
+- deck CRUD
+- card CRUD
+- FSRS-based review metadata on cards
+- flashcard study sessions with review logging
+- deck JSON export
+- CSV and JSON deck import
 
 ### Quizzes and Q&A
 
-- Quiz CRUD
-- Quiz metadata editing
-- Question authoring for MCQ, true/false, fill-in-the-blank, and Q&A
-- Timed quiz sessions
-- Negative-marking support
-- Post-attempt review
-- Keyword-based grading for short-answer questions
-- Model answers, keyword thresholds, and partial-credit support
+- quiz CRUD
+- multiple quiz question types: MCQ, true/false, fill-in-the-blank, short answer
+- practice mode and exam mode
+- timer support
+- negative marking and section-based quiz rules
+- latest-attempt export and retry-from-wrong-answers flow
+- subject-level Q&A bank with review scheduling
 
-### Analytics
+### Analytics and Progress
 
-- Due counts
-- Reviewed-today summary
-- Streak tracking
-- Recent activity
-- Subject-level study summaries
-- Session distribution views
+- due-now summaries across cards, notes, Q&A, and quizzes
+- streaks and recent activity
+- seven-day review and accuracy summaries
+- subject-level progress views
+- gamification metrics such as XP, milestones, and goal tracking
+- Pomodoro-linked progress tracking
 
-### Persistence
+### Portability and Safety
 
-- Native SQLite-backed persistence path
-- SharedPreferences-backed web fallback repositories
-- Starter-content bootstrap on clean local installs
+- subject bundle export
+- entire-library export
+- analytics and session export
+- wrong-question and weak-topic export flows
+- user-selected backup directory support on native platforms
+- automatic safety snapshots before imports when enabled
 
-## Partially Implemented
+## Current Technical Baseline
 
-### Scheduling
-
-- Card models already carry scheduling fields designed for more advanced evolution
-- The current review engine is usable, but it is still a baseline local scheduler rather than a finalized long-term algorithm implementation
-
-### Web Persistence
-
-- Web persistence is implemented and usable
-- The long-term production storage path for web remains simpler than the native path and may evolve further
-
-### Settings and Data Controls
-
-- Profile, layout, theme, and schema-related preferences are present
-- Broader validation, backup/export management, and future AI-related controls remain incomplete
-
-## Not Yet Implemented
-
-- Sheets and rehearsal mode
-- Reminder and event features
-- Resource link box
-- Cross-device sync
-- Full backup/export flows across the entire app
-- Quiz export
+- native persistence uses SQLite
+- web persistence uses a local SharedPreferences-backed path
+- JSON, CSV, and Markdown imports are validated before persistence
+- native database startup runs integrity and foreign-key checks
+- export filenames are sanitized before save operations
 
 ## Known Gaps
 
-- Automated test coverage is still limited relative to the feature surface
-- Some docs still describe future-facing architecture extensions that are not yet implemented
-- Native and web persistence share the same product behavior but not the same storage implementation
+- secure storage for future AI provider credentials is not implemented yet
+- automated test coverage is smaller than the feature surface area
+- web persistence remains intentionally simpler than the native persistence path
+- image-based study content and Anki import are not implemented
 
-## Recommended Next Priorities
+## Next Major Focus
 
-1. Expand automated test coverage for study and quiz flows
-2. Add quiz export and broader backup/export support
-3. Implement sheets and rehearsal mode
-4. Expand analytics depth and history views
-5. Harden persistence and portability workflows across platforms
+The next security-sensitive milestone is bring-your-own-key AI integration. Before that work begins, the repository should continue tightening:
+
+1. secure secret storage strategy by platform
+2. malformed-import regression tests
+3. release-oriented Android and desktop hardening
+4. documented privacy boundaries for off-device AI requests

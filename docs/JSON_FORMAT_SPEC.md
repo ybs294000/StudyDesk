@@ -1,112 +1,74 @@
 # JSON Format Specification
 
-Last updated: 2026-06-20
+Last updated: 2026-06-26
 
-This document describes the StudyDesk JSON direction.
+This document describes the import and export formats currently supported by StudyDesk.
 
-Implemented today:
+## Wrapper Format
 
-- Deck import
-- Deck export
-- Quiz import, including MCQ, true/false, fill-in-the-blank, and keyword-graded Q&A
-
-Still forward-looking:
-
-- Quiz export
-- sheet
-- qa_set as a standalone top-level type
-- subject backup
-- full-backup
-
-## Top-Level Wrapper
-
-StudyDesk currently accepts either `studydesk_version` or the legacy `studyforge_version` field on import.
+StudyDesk import payloads use a top-level JSON object.
 
 ```json
 {
   "studydesk_version": "1.0",
-  "export_date": "2026-06-20T00:00:00Z",
+  "export_date": "2026-06-26T00:00:00Z",
   "type": "deck",
   "content": {}
 }
 ```
 
-Legacy compatibility example:
+For backward compatibility, import still accepts the legacy `studyforge_version` field in place of `studydesk_version`.
 
-```json
-{
-  "studyforge_version": "1.0",
-  "export_date": "2026-06-20T00:00:00Z",
-  "type": "deck",
-  "content": {}
-}
-```
+## Implemented Import Types
 
-## Implemented Format: Deck
+StudyDesk currently imports:
 
-This is the format the current app can actually import and export.
+- `deck`
+- `quiz`
+
+Notes are imported as Markdown files rather than JSON payloads.
+
+## Deck Format
 
 ```json
 {
   "studydesk_version": "1.0",
-  "export_date": "2026-06-20T00:00:00Z",
+  "export_date": "2026-06-26T00:00:00Z",
   "type": "deck",
   "content": {
     "name": "Functional Groups",
-    "description": "Common organic functional groups and their properties",
+    "description": "Common organic chemistry prompts",
+    "tags": ["chemistry", "flashcards"],
     "cards": [
       {
         "id": "card_001",
         "front": "What is the functional group of an alcohol?",
         "back": "Hydroxyl group: -OH",
-        "hint": "Think of water with one H replaced"
+        "hint": "Think of water with one hydrogen replaced"
       }
     ]
   }
 }
 ```
 
-### Required Fields
+### Required fields
 
-- top-level version field
 - `type`
 - `content.name`
 - `content.cards`
-- each card must have non-empty `front` and `back`
+- non-empty `front` and `back` for every card
 
-### Currently Ignored or Not Yet Persisted
-
-The sample JSON may contain fields like:
-
-- `front_image`
-- `back_image`
-- `tags`
-
-These are part of the intended format direction, but the current flashcard implementation does not yet persist or use them.
-
-## Forward-Looking Formats
-
-These remain documented targets, not current import/export guarantees:
-
-- `subject`
-- `quiz`
-- `sheet`
-- `qa_set`
-- `backup`
-
-They should not be treated as implemented until the app ships the corresponding domain models and flows.
-
-## Implemented Quiz Import Format
-
-StudyDesk imports common exam-style quiz rules, including cases where wrong answers reduce the score.
+## Quiz Format
 
 ```json
 {
   "studydesk_version": "1.0",
+  "export_date": "2026-06-26T00:00:00Z",
   "type": "quiz",
   "content": {
     "name": "Competitive Practice Set",
-    "description": "Timed practice with mixed marking rules",
+    "description": "Timed objective practice",
+    "tags": ["mcq", "exam-prep"],
     "settings": {
       "shuffle_questions": true,
       "shuffle_options": true,
@@ -120,23 +82,7 @@ StudyDesk imports common exam-style quiz rules, including cases where wrong answ
         "skipped_points": 0,
         "negative_marking": true,
         "partial_credit": false
-      },
-      "section_rules": [
-        {
-          "section_id": "part_a",
-          "name": "MCQ",
-          "question_types": ["mcq", "true_false"],
-          "negative_marking": true,
-          "wrong_points": -1
-        },
-        {
-          "section_id": "part_b",
-          "name": "Numerical",
-          "question_types": ["fill_blank"],
-          "negative_marking": false,
-          "wrong_points": 0
-        }
-      ]
+      }
     },
     "questions": [
       {
@@ -145,140 +91,76 @@ StudyDesk imports common exam-style quiz rules, including cases where wrong answ
         "question": "Question text",
         "options": ["A", "B", "C", "D"],
         "correct_index": 0,
-        "points": 4,
-        "grading": {
-          "negative_marking": true,
-          "wrong_points": -1
-        }
+        "explanation": "Why the correct option is right",
+        "points": 4
       }
     ]
   }
 }
 ```
 
-### Quiz Grading Fields
+### Supported question types
 
-- `correct_points`
-- `wrong_points`
-- `skipped_points`
-- `negative_marking`
-- `partial_credit`
-- `section_rules`
-- per-question `points`
-- per-question `grading` override
-- short-answer `keyword_rules`
-- short-answer `minimum_keyword_matches`
-- short-answer `minimum_keyword_score_percent`
-- short-answer `allow_partial_credit`
+- `mcq`
+- `true_false`
+- `fill_blank`
+- `short_answer`
 
-This is intentionally broader than a simple classroom quiz because many exam-style practice systems need to model standard MCQ marking, no-negative-marking sections, and keyword-based written responses.
+### Short-answer support
 
-### Short-Answer / Q&A Example
+Short-answer questions can include:
 
-```json
-{
-  "id": "q_qa_001",
-  "type": "short_answer",
-  "question": "Why are mitochondria called the powerhouse of the cell?",
-  "model_answer": "They produce ATP through cellular respiration, supplying usable energy.",
-  "keywords": ["ATP", "energy", "cellular respiration"],
-  "keyword_rules": [
-    {
-      "term": "ATP",
-      "aliases": ["adenosine triphosphate"],
-      "required": true,
-      "weight": 1.2
-    },
-    {
-      "term": "energy",
-      "aliases": ["usable energy"],
-      "required": true,
-      "weight": 1.0
-    },
-    {
-      "term": "cellular respiration",
-      "aliases": ["respiration"],
-      "required": false,
-      "weight": 0.8
-    }
-  ],
-  "min_words": 10,
-  "max_words": 50,
-  "minimum_keyword_matches": 2,
-  "minimum_keyword_score_percent": 0.6,
-  "allow_partial_credit": true,
-  "grading_mode": "keywords",
-  "points": 4
-}
-```
-
-In current StudyDesk builds:
-
-- `keywords` is still accepted for compatibility
-- `keyword_rules` is preferred when you want required vs supporting concepts
-- `minimum_keyword_matches` lets authors demand a minimum count of matched concepts
-- `minimum_keyword_score_percent` sets the pass threshold for full credit
-- `allow_partial_credit` lets the grader award proportional credit from keyword coverage
+- `model_answer`
+- `keywords`
+- `keyword_rules`
+- `minimum_keyword_matches`
+- `minimum_keyword_score_percent`
+- `allow_partial_credit`
+- `min_words`
+- `max_words`
 
 ## Validation Rules
 
-Current import validation must ensure:
+Current import validation checks:
 
-1. A version field exists
-2. `type` is a supported implemented type
-3. `content.name` is present and non-empty
-4. Deck imports contain non-empty `content.cards`
-5. Quiz imports contain non-empty `content.questions`
-6. Every deck card contains non-empty `front` and `back`
-7. Every short-answer quiz question intended for keyword grading contains at least one required keyword concept
+1. the payload is valid UTF-8 text
+2. the payload is valid JSON
+3. the top-level JSON value is an object
+4. the wrapper `type` is supported
+5. required content fields are present
+6. card and question counts remain within StudyDesk safety limits
+7. quiz questions use valid structures for their declared type
+8. imported strings stay within StudyDesk field-length limits
 
-## AI Generation Workflow
+## Markdown Note Import
 
-StudyDesk exposes a built-in AI handoff bundle in `Settings -> Schema Editor`.
+Notes are imported as Markdown files.
 
-Recommended usage:
+Recommended structure:
 
-1. Copy `AI Prompt` or `Prompt + Schema`
-2. Paste it into your AI tool
-3. Ask for exactly one output mode at a time
-4. Import the returned file into the relevant subject
+```md
+---
+section-level: h2
+---
 
-Current supported AI output targets are:
+## Topic
+Study content here.
 
-- `deck` JSON
-- `quiz` JSON
-- raw Markdown note content
-
-Important constraints:
-
-- Return JSON only for deck and quiz output
-- Do not wrap JSON in markdown fences
-- Keep field names exactly as documented
-- Use only implemented question types
-- For Markdown notes, return raw Markdown only
-
-### Example Deck Prompt
-
-```text
-Create a StudyDesk deck JSON file about [TOPIC].
-Return valid JSON only.
-Use the exact StudyDesk deck schema.
-Include at least 10 cards with clear front and back text.
+## Another Topic
+More study content here.
 ```
 
-### Example Quiz Prompt
+This format works well with the note reading and section-recall flows already implemented in the app.
 
-```text
-Create a StudyDesk quiz JSON file about [TOPIC].
-Return valid JSON only.
-Use the exact StudyDesk quiz schema.
-Choose only supported question types and include all required grading fields.
-```
+## AI-Assisted Content Generation
 
-### Example Note Prompt
+StudyDesk exposes a built-in AI prompt and schema bundle in `Settings -> Schema Editor`.
 
-```text
-Create a StudyDesk Markdown note about [TOPIC].
-Return raw Markdown only.
-Use ## headings for major sections and keep the structure study-ready.
-```
+Recommended workflow:
+
+1. copy `AI Prompt` or `Prompt + Schema`
+2. paste it into an external AI tool
+3. ask for exactly one output mode at a time
+4. import the resulting deck JSON, quiz JSON, or Markdown note
+
+If the returned payload follows the schema exactly, the import should work without manual cleanup.

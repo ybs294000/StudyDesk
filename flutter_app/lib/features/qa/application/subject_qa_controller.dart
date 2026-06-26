@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/studydesk_security.dart';
 import '../data/qa_items_repository.dart';
 import '../domain/qa_item_record.dart';
 
@@ -30,9 +31,18 @@ class SubjectQaController extends FamilyAsyncNotifier<List<QaItemRecord>, String
       id: id ?? now.microsecondsSinceEpoch.toString(),
       subjectId: subjectId,
       unitId: unitId,
-      question: question.trim(),
-      answerMarkdown: answerMarkdown.trim(),
-      tags: tags,
+      question: StudyDeskSecurity.sanitizeSingleLine(
+        question,
+        field: 'Q&A question',
+        maxLength: StudyDeskSecurity.maxQaQuestionLength,
+      ),
+      answerMarkdown: StudyDeskSecurity.sanitizeMultiline(
+        answerMarkdown,
+        field: 'Q&A answer',
+        maxLength: StudyDeskSecurity.maxQaAnswerLength,
+        allowEmpty: false,
+      ),
+      tags: StudyDeskSecurity.sanitizeTags(tags),
       createdAt: now,
       updatedAt: now,
     );
@@ -43,7 +53,22 @@ class SubjectQaController extends FamilyAsyncNotifier<List<QaItemRecord>, String
   }
 
   Future<void> saveItem(QaItemRecord item) async {
-    await _repository.upsertItem(item);
+    final normalized = item.copyWith(
+      question: StudyDeskSecurity.sanitizeSingleLine(
+        item.question,
+        field: 'Q&A question',
+        maxLength: StudyDeskSecurity.maxQaQuestionLength,
+      ),
+      answerMarkdown: StudyDeskSecurity.sanitizeMultiline(
+        item.answerMarkdown,
+        field: 'Q&A answer',
+        maxLength: StudyDeskSecurity.maxQaAnswerLength,
+        allowEmpty: false,
+      ),
+      tags: StudyDeskSecurity.sanitizeTags(item.tags),
+      updatedAt: DateTime.now(),
+    );
+    await _repository.upsertItem(normalized);
     final items = await _repository.loadItems();
     state = AsyncData(_forSubject(items, arg));
   }

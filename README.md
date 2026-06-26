@@ -69,6 +69,7 @@ StudyDesk currently supports a complete local study workflow with the following 
 - Subject-based organization for notes, decks, and quizzes
 - Optional unit grouping inside a subject for chapters, modules, or topics
 - Tag-based organization for decks, quizzes, and notes
+- In-app AI workspace with bring-your-own-key OpenAI or Claude support for subject-aware generation of decks, quizzes, notes, and Q&A banks
 - Flashcard study with adaptive spaced repetition and review logging
 - Quiz authoring with practice mode, exam mode, timed sessions, negative marking, and multiple question types
 - Keyword-graded Q&A practice with model answers and threshold-based scoring
@@ -116,6 +117,16 @@ Persistence is platform-specific but remains local-first:
 - Schedule note reviews into the due queue
 - Create flashcard drafts from selected note content
 - Generate note-based Q&A recall prompts from structured headings
+- Generate or revise StudyDesk note payloads with in-app AI using the current subject and note context
+
+### AI Workspace
+
+- Bring your own OpenAI or Claude API key through Settings
+- Keep provider keys on-device, with session-only storage on web
+- Generate complete StudyDesk JSON for decks, quizzes, notes, and Q&A banks
+- Use existing subject content as context so generated output fits the current library
+- Refine generated content in the same chat instead of starting over
+- Apply generated note revisions directly to the current note or import new content into the active subject
 
 ### Flashcards
 

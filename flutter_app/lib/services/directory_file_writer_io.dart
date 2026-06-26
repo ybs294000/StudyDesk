@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
+import '../core/security/studydesk_security.dart';
+
 class DirectoryFileWriter {
   const DirectoryFileWriter();
 
@@ -21,7 +23,13 @@ class DirectoryFileWriter {
       directory.createSync(recursive: true);
     }
 
-    final path = p.join(directory.path, fileName);
+    final path = p.join(
+      directory.path,
+      StudyDeskSecurity.sanitizeFileName(
+        fileName,
+        fallback: 'studydesk-export',
+      ),
+    );
     final file = File(path);
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
@@ -31,4 +39,3 @@ class DirectoryFileWriter {
 DirectoryFileWriter createDirectoryFileWriter() {
   return const DirectoryFileWriter();
 }
-

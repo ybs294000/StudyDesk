@@ -1,11 +1,10 @@
-import 'dart:convert';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/security/studydesk_security.dart';
 import '../../../core/settings/profile_settings_controller.dart';
 import '../../../core/widgets/markdown_content.dart';
 import '../../../services/library_backup_service.dart';
@@ -257,7 +256,15 @@ class _SubjectNotesScreenState extends ConsumerState<SubjectNotesScreen> {
       if (bytes == null) {
         throw const FormatException('The selected Markdown file could not be read.');
       }
-      final markdown = utf8.decode(bytes);
+      StudyDeskSecurity.ensureImportSize(
+        bytes,
+        label: file.name.isEmpty ? 'Markdown file' : file.name,
+        maxBytes: StudyDeskSecurity.maxMarkdownImportBytes,
+      );
+      final markdown = StudyDeskSecurity.decodeUtf8(
+        bytes,
+        label: file.name.isEmpty ? 'Markdown file' : file.name,
+      );
       await _maybeCreateSafetySnapshot('markdown-note-import');
       final imported = await ref
           .read(subjectNotesControllerProvider(widget.subjectId).notifier)

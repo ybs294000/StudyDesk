@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/app_shell.dart';
 import '../../features/analytics/analytics_screen.dart';
+import '../../features/ai/presentation/subject_ai_workspace_screen.dart';
 import '../../features/cards/presentation/deck_detail_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/notes/presentation/note_editor_screen.dart';
@@ -42,6 +43,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => DeckDetailScreen(
               subjectId: state.pathParameters['subjectId']!,
               deckId: state.pathParameters['deckId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/subjects/:subjectId/ai',
+            builder: (context, state) => SubjectAiWorkspaceScreen(
+              subjectId: state.pathParameters['subjectId']!,
+              initialKind: state.uri.queryParameters['kind'],
+              noteId: state.uri.queryParameters['noteId'],
             ),
           ),
           GoRoute(

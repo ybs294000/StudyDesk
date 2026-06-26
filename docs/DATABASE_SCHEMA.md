@@ -1,119 +1,87 @@
 # Database Schema
 
-Last updated: 2026-06-20
+Last updated: 2026-06-26
 
-This document describes the database schema that currently exists in the app and the most likely expansion direction.
+This document describes the persistence model currently implemented in StudyDesk.
 
-## Current Reality
+## Persistence Model
 
-StudyDesk currently persists four main entities in SQLite on native platforms:
+### Native platforms
+
+Windows, Android, Linux, and other native targets use SQLite-backed repositories for structured study data.
+
+### Web
+
+The web target uses a local SharedPreferences-backed repository path. It mirrors the product behavior of the native app, but it does not currently use the same SQLite storage backend.
+
+## Current Database Version
+
+The current native database version in code is `10`.
+
+## Startup Integrity Checks
+
+On native platforms, database startup currently performs:
+
+- `PRAGMA foreign_keys = ON`
+- `PRAGMA journal_mode = WAL`
+- `PRAGMA busy_timeout = 5000`
+- `PRAGMA secure_delete = ON`
+- `PRAGMA quick_check`
+- `PRAGMA foreign_key_check`
+
+If startup integrity checks fail, the database is treated as unhealthy and normal startup is stopped rather than continuing silently with corrupted state.
+
+## Main Tables
+
+StudyDesk currently persists the following main entities on native targets:
 
 - `subjects`
+- `subject_units`
 - `decks`
 - `cards`
+- `quizzes`
 - `study_sessions`
+- `notes`
+- `note_review_states`
+- `qa_items`
+- `qa_review_states`
+- `quiz_attempt_sessions`
 
-Web does not use this SQLite schema yet. It uses repository fallbacks backed by `SharedPreferences`.
+## Relationship Model
 
-## Current Native Tables
+- a subject owns many decks, quizzes, notes, Q&A items, units, and study sessions
+- a deck owns many cards
+- note review state is keyed by note id
+- Q&A review state is keyed by Q&A item id
 
-### subjects
+Most core content relationships use foreign keys with cascade or set-null behavior.
 
-```sql
-CREATE TABLE subjects (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  emoji TEXT NOT NULL,
-  color_value INTEGER NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-```
+`quiz_attempt_sessions` intentionally stores historical attempt data without strict live foreign-key enforcement to preserve exports and history even if a related quiz, subject, or unit is later removed.
 
-### decks
+## Index Coverage
 
-```sql
-CREATE TABLE decks (
-  id TEXT PRIMARY KEY,
-  subject_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
-);
-```
+The schema currently includes indexes for:
 
-### cards
+- subject ownership lookups
+- unit ownership lookups
+- due-date lookups for cards, notes, and Q&A
+- study-session timeline queries
+- quiz-attempt timeline and subject lookups
 
-```sql
-CREATE TABLE cards (
-  id TEXT PRIMARY KEY,
-  deck_id TEXT NOT NULL,
-  front TEXT NOT NULL,
-  back TEXT NOT NULL,
-  hint TEXT NOT NULL,
-  scheduler_version TEXT NOT NULL DEFAULT 'baseline_v1',
-  study_state TEXT NOT NULL DEFAULT 'new',
-  review_count INTEGER NOT NULL DEFAULT 0,
-  lapse_count INTEGER NOT NULL DEFAULT 0,
-  interval_days INTEGER NOT NULL DEFAULT 0,
-  ease REAL NOT NULL DEFAULT 2.5,
-  stability REAL NOT NULL DEFAULT 0.2,
-  difficulty REAL NOT NULL DEFAULT 5.0,
-  due_at TEXT,
-  last_reviewed_at TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE CASCADE
-);
-```
+This keeps the common dashboards, due queues, and history views fast on local devices.
 
-### study_sessions
+## Legacy Migration Support
 
-```sql
-CREATE TABLE study_sessions (
-  id TEXT PRIMARY KEY,
-  subject_id TEXT,
-  deck_id TEXT,
-  session_type TEXT NOT NULL,
-  started_at TEXT NOT NULL,
-  ended_at TEXT NOT NULL,
-  reviewed_count INTEGER NOT NULL DEFAULT 0,
-  completed_count INTEGER NOT NULL DEFAULT 0,
-  again_count INTEGER NOT NULL DEFAULT 0,
-  due_count INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE SET NULL,
-  FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE SET NULL
-);
-```
+The repository still contains a migration path from earlier SharedPreferences-backed data stores into SQLite on native platforms.
 
-## Current Indexes
+That migration runs only when:
 
-- `idx_decks_subject_id`
-- `idx_cards_deck_id`
-- `idx_cards_due_at`
-- `idx_study_sessions_started_at`
-- `idx_study_sessions_subject_id`
+- the SQLite database is empty
+- the legacy storage keys still contain data
+- the migration flag has not already been written
 
-## Current Migration Level
+## Backup and Recovery
 
-The current database version in code is `3`.
+Before native database open, StudyDesk creates a pre-open copy of the current database file if one exists and a backup for the current timestamp has not already been created.
 
-Notable migration history:
-
-- V2 introduced richer scheduling fields to cards
-- V3 introduced `study_sessions`
-
-## Planned Expansion
-
-Future schema growth is expected to add first-class tables for:
-
-- quizzes
-- quiz questions
-- sheets
-- Q&A sets
-- reminders
-- links
-
-Those tables are not implemented yet and should not be described as live storage until the app ships them.
+Separately, the app can also create export-based safety snapshots before imports when that option is enabled in settings.

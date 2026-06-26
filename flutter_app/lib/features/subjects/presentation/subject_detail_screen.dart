@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +9,7 @@ import '../../../core/widgets/json_drop_zone.dart';
 import '../../../services/content_portability_service.dart';
 import '../../../services/export_file_service.dart';
 import '../../../services/library_backup_service.dart';
+import '../../../core/security/studydesk_security.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../dashboard/application/dashboard_summary_provider.dart';
@@ -157,6 +156,7 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
                         onOpenNotes: () => context.push('/subjects/${subject.id}/notes'),
                         onCreateNote: _createQuickNote,
                         onOpenQaBank: () => context.push('/subjects/${subject.id}/qa'),
+                        onOpenAiWorkspace: () => context.push('/subjects/${subject.id}/ai'),
                         onExportBundle: _exportSubjectBundle,
                       ),
                     ),
@@ -1065,12 +1065,20 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     required String extension,
   }) async {
     if (extension == 'csv') {
+      StudyDeskSecurity.ensureImportSize(
+        bytes,
+        label: sourceLabel,
+        maxBytes: StudyDeskSecurity.maxCsvImportBytes,
+      );
       await _maybeCreateSafetySnapshot('csv-import');
       final result = await ref
           .read(contentPortabilityServiceProvider)
           .importDeckCsv(
             subjectId: subject.id,
-            csvSource: utf8.decode(bytes),
+            csvSource: StudyDeskSecurity.decodeUtf8(
+              bytes,
+              label: sourceLabel,
+            ),
             unitId: _defaultUnitForCreate(),
             deckName: sourceLabel.replaceAll(RegExp(r'\.csv$', caseSensitive: false), ''),
           );
@@ -1085,8 +1093,16 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
       return;
     }
 
+    StudyDeskSecurity.ensureImportSize(
+      bytes,
+      label: sourceLabel,
+      maxBytes: StudyDeskSecurity.maxJsonImportBytes,
+    );
     await _maybeCreateSafetySnapshot('json-import');
-    final jsonSource = utf8.decode(bytes);
+    final jsonSource = StudyDeskSecurity.decodeUtf8(
+      bytes,
+      label: sourceLabel,
+    );
     final result = await ref
         .read(contentPortabilityServiceProvider)
         .importStudyJson(
@@ -1097,6 +1113,8 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
 
     ref.invalidate(subjectDecksControllerProvider(subject.id));
     ref.invalidate(subjectQuizzesControllerProvider(subject.id));
+    ref.invalidate(subjectNotesControllerProvider(subject.id));
+    ref.invalidate(subjectQaControllerProvider(subject.id));
     ref.invalidate(dashboardSummaryProvider);
 
     if (!mounted) {
@@ -1106,6 +1124,8 @@ class _SubjectDetailContentState extends ConsumerState<_SubjectDetailContent> {
     final importedLabel = switch (result.type) {
       StudyImportType.deck => 'cards',
       StudyImportType.quiz => 'questions',
+      StudyImportType.note => 'note',
+      StudyImportType.qaBank => 'prompts',
     };
     _showSnackBar(
       'Imported ${result.name} from $sourceLabel with ${result.itemCount} $importedLabel.',
@@ -1139,6 +1159,7 @@ class _SubjectHero extends StatelessWidget {
     required this.onOpenNotes,
     required this.onCreateNote,
     required this.onOpenQaBank,
+    required this.onOpenAiWorkspace,
     required this.onExportBundle,
   });
 
@@ -1155,6 +1176,7 @@ class _SubjectHero extends StatelessWidget {
   final VoidCallback onOpenNotes;
   final VoidCallback onCreateNote;
   final VoidCallback onOpenQaBank;
+  final VoidCallback onOpenAiWorkspace;
   final VoidCallback onExportBundle;
 
   @override
@@ -1206,6 +1228,11 @@ class _SubjectHero extends StatelessWidget {
                 onPressed: onOpenQaBank,
                 icon: const Icon(Icons.record_voice_over_rounded),
                 label: const Text('Q&A Bank'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: onOpenAiWorkspace,
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: const Text('AI Workspace'),
               ),
               FilledButton.tonalIcon(
                 onPressed: onCreateNote,

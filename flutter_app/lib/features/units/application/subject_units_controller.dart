@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/security/studydesk_security.dart';
 import '../data/subject_units_repository.dart';
 import '../domain/subject_unit_record.dart';
 
@@ -34,7 +35,11 @@ class SubjectUnitsController
       id: now.microsecondsSinceEpoch.toString(),
       subjectId: subjectId,
       name: normalizedName,
-      description: description.trim(),
+      description: StudyDeskSecurity.sanitizeMultiline(
+        description,
+        field: 'Unit description',
+        maxLength: StudyDeskSecurity.maxDescriptionLength,
+      ),
       createdAt: now,
       updatedAt: now,
     );
@@ -53,7 +58,11 @@ class SubjectUnitsController
         name: unit.name,
         unitId: unit.id,
       ),
-      description: unit.description.trim(),
+      description: StudyDeskSecurity.sanitizeMultiline(
+        unit.description,
+        field: 'Unit description',
+        maxLength: StudyDeskSecurity.maxDescriptionLength,
+      ),
       updatedAt: DateTime.now(),
     );
     final updated = allUnits
@@ -86,7 +95,12 @@ class SubjectUnitsController
     required String name,
     String? unitId,
   }) {
-    final base = name.trim().isEmpty ? 'New Unit' : name.trim();
+    final base = StudyDeskSecurity.sanitizeSingleLine(
+      name,
+      field: 'Unit name',
+      maxLength: StudyDeskSecurity.maxUnitNameLength,
+      fallback: 'New Unit',
+    );
     final existing = units
         .where((unit) => unit.subjectId == subjectId && unit.id != unitId)
         .map((unit) => unit.name.trim().toLowerCase())

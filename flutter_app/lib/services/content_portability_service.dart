@@ -4,6 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/security/studydesk_security.dart';
 import '../core/settings/profile_settings_controller.dart';
 import '../features/cards/data/cards_repository.dart';
 import '../features/cards/domain/card_record.dart';
@@ -98,7 +99,10 @@ class ContentPortabilityService {
     required String jsonSource,
     String? unitId,
   }) async {
-    final parsed = jsonDecode(jsonSource) as Map<String, dynamic>;
+    final parsed = StudyDeskSecurity.decodeJsonObject(
+      jsonSource,
+      label: 'StudyDesk import file',
+    );
     final type = parsed['type'];
 
     switch (type) {
@@ -124,9 +128,31 @@ class ContentPortabilityService {
           name: result.quizName,
           itemCount: result.importedQuestionCount,
         );
+      case 'note':
+        final result = await importNoteJson(
+          subjectId: subjectId,
+          jsonSource: jsonSource,
+          unitId: unitId,
+        );
+        return StudyImportResult.note(
+          id: result.noteId,
+          name: result.noteTitle,
+          itemCount: 1,
+        );
+      case 'qa_bank':
+        final result = await importQaBankJson(
+          subjectId: subjectId,
+          jsonSource: jsonSource,
+          unitId: unitId,
+        );
+        return StudyImportResult.qaBank(
+          id: result.primaryId,
+          name: result.label,
+          itemCount: result.importedItemCount,
+        );
       default:
         throw FormatException(
-          'Unsupported StudyDesk JSON type: $type. Expected "deck" or "quiz".',
+          'Unsupported StudyDesk JSON type: $type. Expected "deck", "quiz", "note", or "qa_bank".',
         );
     }
   }
@@ -163,7 +189,20 @@ class ContentPortabilityService {
       if (front.isEmpty || back.isEmpty) {
         throw FormatException('CSV row ${index + 1} must include both front and back text.');
       }
-      parsedCards.add((front: front, back: back));
+      parsedCards.add((
+        front: StudyDeskSecurity.sanitizeMultiline(
+          front,
+          field: 'CSV row ${index + 1} front',
+          maxLength: StudyDeskSecurity.maxCardFaceLength,
+          allowEmpty: false,
+        ),
+        back: StudyDeskSecurity.sanitizeMultiline(
+          back,
+          field: 'CSV row ${index + 1} back',
+          maxLength: StudyDeskSecurity.maxCardFaceLength,
+          allowEmpty: false,
+        ),
+      ));
     }
     if (parsedCards.isEmpty) {
       throw const FormatException('CSV import did not contain any usable flashcards.');
@@ -172,14 +211,22 @@ class ContentPortabilityService {
     final now = DateTime.now();
     final resolvedDeckName = (deckName == null || deckName.trim().isEmpty)
         ? 'Imported CSV Deck'
-        : deckName.trim();
+        : StudyDeskSecurity.sanitizeSingleLine(
+            deckName,
+            field: 'Deck name',
+            maxLength: StudyDeskSecurity.maxShortTitleLength,
+          );
     final deckId = now.microsecondsSinceEpoch.toString();
     final newDeck = DeckRecord(
       id: deckId,
       subjectId: subjectId,
       unitId: unitId,
       name: resolvedDeckName,
-      description: description?.trim() ?? '',
+      description: StudyDeskSecurity.sanitizeMultiline(
+        description?.trim() ?? '',
+        field: 'Deck description',
+        maxLength: StudyDeskSecurity.maxDescriptionLength,
+      ),
       tags: normalizeTags(tags),
       createdAt: now,
       updatedAt: now,
@@ -225,82 +272,121 @@ class ContentPortabilityService {
     required String jsonSource,
     String? unitId,
   }) async {
-    final parsed = jsonDecode(jsonSource) as Map<String, dynamic>;
-    final version = parsed['studydesk_version'] ?? parsed['studyforge_version'];
-    if (version == null) {
-      throw const FormatException('Missing version field in JSON.');
-    }
-
-    final type = parsed['type'];
-    if (type != 'deck') {
-      throw FormatException('Only deck imports are supported right now, got: $type');
-    }
-
-    final content = parsed['content'] as Map<String, dynamic>? ?? const {};
-    final name = (content['name'] as String?)?.trim();
-    final description = (content['description'] as String?)?.trim() ?? '';
-    final tags = normalizeTags(((content['tags'] as List?) ?? const []).cast<String>());
-    final cards = content['cards'] as List<dynamic>? ?? const [];
-
-    if (name == null || name.isEmpty) {
-      throw const FormatException('Deck import is missing a name.');
-    }
-    if (cards.isEmpty) {
-      throw const FormatException('Deck import contains no cards.');
-    }
-
-    final now = DateTime.now();
-    final deckId = now.microsecondsSinceEpoch.toString();
-    final newDeck = DeckRecord(
-      id: deckId,
-      subjectId: subjectId,
-      unitId: unitId,
-      name: name,
-      description: description,
-      tags: tags,
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    await decksRepository.upsertDeck(newDeck);
-
-    final importedCards = <CardRecord>[];
-    for (var index = 0; index < cards.length; index += 1) {
-      final raw = cards[index] as Map<String, dynamic>;
-      final front = (raw['front'] as String?)?.trim();
-      final back = (raw['back'] as String?)?.trim();
-      if (front == null || front.isEmpty || back == null || back.isEmpty) {
-        throw FormatException('Card ${index + 1} is missing front/back text.');
-      }
-      importedCards.add(
-        CardRecord(
-          id: '${now.microsecondsSinceEpoch}_$index',
-          deckId: deckId,
-          front: front,
-          back: back,
-          hint: ((raw['hint'] as String?) ?? '').trim(),
-          schedulerVersion: CardRecord.defaultSchedulerVersion,
-          state: 'new',
-          reviewCount: 0,
-          lapseCount: 0,
-          intervalDays: 0,
-          ease: 2.5,
-          stability: 0.1,
-          difficulty: 5.0,
-          dueAt: null,
-          lastReviewedAt: null,
-          createdAt: now,
-          updatedAt: now,
-        ),
+    try {
+      final parsed = StudyDeskSecurity.decodeJsonObject(
+        jsonSource,
+        label: 'Deck import file',
       );
-    }
-    await cardsRepository.upsertCards(importedCards);
+      final version = parsed['studydesk_version'] ?? parsed['studyforge_version'];
+      if (version == null) {
+        throw const FormatException('Missing version field in JSON.');
+      }
 
-    return DeckImportResult(
-      deckId: deckId,
-      deckName: newDeck.name,
-      importedCardCount: importedCards.length,
-    );
+      final type = parsed['type'];
+      if (type != 'deck') {
+        throw FormatException('Only deck imports are supported right now, got: $type');
+      }
+
+      final content = parsed['content'] as Map<String, dynamic>? ?? const {};
+      final name = (content['name'] as String?)?.trim();
+      final description = StudyDeskSecurity.sanitizeMultiline(
+        (content['description'] as String?) ?? '',
+        field: 'Deck description',
+        maxLength: StudyDeskSecurity.maxDescriptionLength,
+      );
+      final tags = normalizeTags(
+        (((content['tags'] as List?) ?? const []).map((item) => item.toString())),
+      );
+      final cards = content['cards'] as List<dynamic>? ?? const [];
+
+      if (name == null || name.isEmpty) {
+        throw const FormatException('Deck import is missing a name.');
+      }
+      if (cards.isEmpty) {
+        throw const FormatException('Deck import contains no cards.');
+      }
+      if (cards.length > StudyDeskSecurity.maxDeckCards) {
+        throw const FormatException('Deck import contains too many cards.');
+      }
+
+      final now = DateTime.now();
+      final deckId = now.microsecondsSinceEpoch.toString();
+      final newDeck = DeckRecord(
+        id: deckId,
+        subjectId: subjectId,
+        unitId: unitId,
+        name: StudyDeskSecurity.sanitizeSingleLine(
+          name,
+          field: 'Deck name',
+          maxLength: StudyDeskSecurity.maxShortTitleLength,
+        ),
+        description: description,
+        tags: tags,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await decksRepository.upsertDeck(newDeck);
+
+      final importedCards = <CardRecord>[];
+      for (var index = 0; index < cards.length; index += 1) {
+        if (cards[index] is! Map) {
+          throw FormatException('Card ${index + 1} is not a valid object.');
+        }
+        final raw = Map<String, dynamic>.from(cards[index] as Map);
+        final front = (raw['front'] as String?)?.trim();
+        final back = (raw['back'] as String?)?.trim();
+        if (front == null || front.isEmpty || back == null || back.isEmpty) {
+          throw FormatException('Card ${index + 1} is missing front/back text.');
+        }
+        importedCards.add(
+          CardRecord(
+            id: '${now.microsecondsSinceEpoch}_$index',
+            deckId: deckId,
+            front: StudyDeskSecurity.sanitizeMultiline(
+              front,
+              field: 'Card ${index + 1} front',
+              maxLength: StudyDeskSecurity.maxCardFaceLength,
+              allowEmpty: false,
+            ),
+            back: StudyDeskSecurity.sanitizeMultiline(
+              back,
+              field: 'Card ${index + 1} back',
+              maxLength: StudyDeskSecurity.maxCardFaceLength,
+              allowEmpty: false,
+            ),
+            hint: StudyDeskSecurity.sanitizeMultiline(
+              ((raw['hint'] as String?) ?? '').trim(),
+              field: 'Card ${index + 1} hint',
+              maxLength: StudyDeskSecurity.maxCardHintLength,
+            ),
+            schedulerVersion: CardRecord.defaultSchedulerVersion,
+            state: 'new',
+            reviewCount: 0,
+            lapseCount: 0,
+            intervalDays: 0,
+            ease: 2.5,
+            stability: 0.1,
+            difficulty: 5.0,
+            dueAt: null,
+            lastReviewedAt: null,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+      }
+      await cardsRepository.upsertCards(importedCards);
+
+      return DeckImportResult(
+        deckId: deckId,
+        deckName: newDeck.name,
+        importedCardCount: importedCards.length,
+      );
+    } on FormatException {
+      rethrow;
+    } catch (_) {
+      throw const FormatException('Deck import structure is invalid.');
+    }
   }
 
   Future<DeckImportResult> importDeckAsset({
@@ -321,60 +407,84 @@ class ContentPortabilityService {
     required String jsonSource,
     String? unitId,
   }) async {
-    final parsed = jsonDecode(jsonSource) as Map<String, dynamic>;
-    final version = parsed['studydesk_version'] ?? parsed['studyforge_version'];
-    if (version == null) {
-      throw const FormatException('Missing version field in JSON.');
-    }
-    if (parsed['type'] != 'quiz') {
-      throw FormatException(
-        'Only quiz imports are supported in this path, got: ${parsed['type']}',
+    try {
+      final parsed = StudyDeskSecurity.decodeJsonObject(
+        jsonSource,
+        label: 'Quiz import file',
       );
+      final version = parsed['studydesk_version'] ?? parsed['studyforge_version'];
+      if (version == null) {
+        throw const FormatException('Missing version field in JSON.');
+      }
+      if (parsed['type'] != 'quiz') {
+        throw FormatException(
+          'Only quiz imports are supported in this path, got: ${parsed['type']}',
+        );
+      }
+
+      final content = parsed['content'] as Map<String, dynamic>? ?? const {};
+      final name = (content['name'] as String?)?.trim();
+      if (name == null || name.isEmpty) {
+        throw const FormatException('Quiz import is missing a name.');
+      }
+
+      final questions = (content['questions'] as List?) ?? const [];
+      if (questions.isEmpty) {
+        throw const FormatException('Quiz import contains no questions.');
+      }
+      if (questions.length > StudyDeskSecurity.maxQuizQuestions) {
+        throw const FormatException('Quiz import contains too many questions.');
+      }
+
+      final parsedQuestions = questions.map((question) {
+        if (question is! Map) {
+          throw const FormatException('Quiz import contains an invalid question object.');
+        }
+        return QuizQuestion.fromMap(Map<String, dynamic>.from(question));
+      }).toList();
+      _validateQuizQuestions(parsedQuestions);
+
+      final now = DateTime.now();
+      final quiz = QuizRecord(
+        id: now.microsecondsSinceEpoch.toString(),
+        subjectId: subjectId,
+        unitId: unitId,
+        name: StudyDeskSecurity.sanitizeSingleLine(
+          name,
+          field: 'Quiz name',
+          maxLength: StudyDeskSecurity.maxShortTitleLength,
+        ),
+        description: StudyDeskSecurity.sanitizeMultiline(
+          (content['description'] as String?) ?? '',
+          field: 'Quiz description',
+          maxLength: StudyDeskSecurity.maxDescriptionLength,
+        ),
+        tags: normalizeTags(
+          (((content['tags'] as List?) ?? const []).map((item) => item.toString())),
+        ),
+        settings: QuizSettings.fromMap(
+          (content['settings'] as Map?)?.cast<String, dynamic>() ?? const {},
+        ),
+        questions: [
+          for (var index = 0; index < parsedQuestions.length; index += 1)
+            _sanitizeImportedQuestion(parsedQuestions[index], index: index),
+        ],
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await quizzesRepository.upsertQuiz(quiz);
+
+      return QuizImportResult(
+        quizId: quiz.id,
+        quizName: quiz.name,
+        importedQuestionCount: quiz.questions.length,
+      );
+    } on FormatException {
+      rethrow;
+    } catch (_) {
+      throw const FormatException('Quiz import structure is invalid.');
     }
-
-    final content = parsed['content'] as Map<String, dynamic>? ?? const {};
-    final name = (content['name'] as String?)?.trim();
-    if (name == null || name.isEmpty) {
-      throw const FormatException('Quiz import is missing a name.');
-    }
-
-    final questions = (content['questions'] as List?) ?? const [];
-    if (questions.isEmpty) {
-      throw const FormatException('Quiz import contains no questions.');
-    }
-
-    final parsedQuestions = questions
-        .map(
-          (question) => QuizQuestion.fromMap(
-            (question as Map).cast<String, dynamic>(),
-          ),
-        )
-        .toList();
-    _validateQuizQuestions(parsedQuestions);
-
-    final now = DateTime.now();
-    final quiz = QuizRecord(
-      id: now.microsecondsSinceEpoch.toString(),
-      subjectId: subjectId,
-      unitId: unitId,
-      name: name,
-      description: (content['description'] as String?)?.trim() ?? '',
-      tags: normalizeTags(((content['tags'] as List?) ?? const []).cast<String>()),
-      settings: QuizSettings.fromMap(
-        (content['settings'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
-      questions: parsedQuestions,
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    await quizzesRepository.upsertQuiz(quiz);
-
-    return QuizImportResult(
-      quizId: quiz.id,
-      quizName: quiz.name,
-      importedQuestionCount: quiz.questions.length,
-    );
   }
 
   Future<QuizImportResult> importQuizAsset({
@@ -388,6 +498,210 @@ class ContentPortabilityService {
       jsonSource: jsonSource,
       unitId: unitId,
     );
+  }
+
+  Future<NoteImportResult> importNoteJson({
+    required String subjectId,
+    required String jsonSource,
+    String? unitId,
+  }) async {
+    try {
+      final parsed = StudyDeskSecurity.decodeJsonObject(
+        jsonSource,
+        label: 'Note import file',
+      );
+      final version = parsed['studydesk_version'] ?? parsed['studyforge_version'];
+      if (version == null) {
+        throw const FormatException('Missing version field in JSON.');
+      }
+      if (parsed['type'] != 'note') {
+        throw FormatException(
+          'Only note imports are supported in this path, got: ${parsed['type']}',
+        );
+      }
+
+      final content = (parsed['content'] as Map?)?.cast<String, dynamic>() ?? parsed;
+      final rawMarkdown = (content['body_markdown'] ??
+              content['bodyMarkdown'] ??
+              content['markdown'] ??
+              content['body']) as String? ??
+          '';
+      final bodyMarkdown = StudyDeskSecurity.sanitizeMultiline(
+        rawMarkdown,
+        field: 'Note body',
+        maxLength: StudyDeskSecurity.maxNoteBodyLength,
+        allowEmpty: false,
+      );
+      final title = StudyDeskSecurity.sanitizeSingleLine(
+        (content['title'] as String?)?.trim().isNotEmpty == true
+            ? content['title'] as String
+            : deriveTitleFromMarkdown(bodyMarkdown),
+        field: 'Note title',
+        maxLength: StudyDeskSecurity.maxShortTitleLength,
+      );
+      final tags = normalizeTags(
+        (((content['tags'] as List?) ?? const []).map((item) => item.toString())),
+      );
+
+      final validUnitIds = (await unitsRepository.loadUnits())
+          .where((item) => item.subjectId == subjectId)
+          .map((item) => item.id)
+          .toSet();
+      final requestedUnitId = _nullableString(
+        content['unit_id'] ?? content['unitId'],
+      );
+      final resolvedUnitId = _resolveImportedUnitId(
+        requestedUnitId: requestedUnitId,
+        fallbackUnitId: unitId,
+        validUnitIds: validUnitIds,
+      );
+
+      final existingNotes = (await notesRepository.loadNotes())
+          .where((note) => note.subjectId == subjectId)
+          .toList();
+      final now = DateTime.now();
+      final note = NoteRecord(
+        id: now.microsecondsSinceEpoch.toString(),
+        subjectId: subjectId,
+        unitId: resolvedUnitId,
+        title: _ensureUniqueNoteTitle(title, existingNotes),
+        bodyMarkdown: bodyMarkdown,
+        tags: tags,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await notesRepository.upsertNote(note);
+      await noteReviewRepository.upsertReview(
+        NoteReviewRecord.initial(
+          noteId: note.id,
+          subjectId: subjectId,
+          unitId: resolvedUnitId,
+        ),
+      );
+
+      return NoteImportResult(
+        noteId: note.id,
+        noteTitle: note.title,
+      );
+    } on FormatException {
+      rethrow;
+    } catch (_) {
+      throw const FormatException('Note import structure is invalid.');
+    }
+  }
+
+  Future<QaBankImportResult> importQaBankJson({
+    required String subjectId,
+    required String jsonSource,
+    String? unitId,
+  }) async {
+    try {
+      final parsed = StudyDeskSecurity.decodeJsonObject(
+        jsonSource,
+        label: 'Q&A import file',
+      );
+      final version = parsed['studydesk_version'] ?? parsed['studyforge_version'];
+      if (version == null) {
+        throw const FormatException('Missing version field in JSON.');
+      }
+      if (parsed['type'] != 'qa_bank') {
+        throw FormatException(
+          'Only Q&A bank imports are supported in this path, got: ${parsed['type']}',
+        );
+      }
+
+      final content = (parsed['content'] as Map?)?.cast<String, dynamic>();
+      final itemMaps = _extractQaImportItems(parsed, content);
+      if (itemMaps.isEmpty) {
+        throw const FormatException('Q&A import contains no items.');
+      }
+      if (itemMaps.length > StudyDeskSecurity.maxDeckCards) {
+        throw const FormatException('Q&A import contains too many items.');
+      }
+
+      final validUnitIds = (await unitsRepository.loadUnits())
+          .where((item) => item.subjectId == subjectId)
+          .map((item) => item.id)
+          .toSet();
+      final now = DateTime.now();
+      final importedItems = <QaItemRecord>[];
+      final importedReviews = <QaReviewRecord>[];
+
+      for (var index = 0; index < itemMaps.length; index += 1) {
+        final item = itemMaps[index];
+        final question = StudyDeskSecurity.sanitizeSingleLine(
+          _requiredString(
+            item['question'],
+            field: 'Q&A item ${index + 1} question',
+          ),
+          field: 'Q&A item ${index + 1} question',
+          maxLength: StudyDeskSecurity.maxQaQuestionLength,
+        );
+        final answerMarkdown = StudyDeskSecurity.sanitizeMultiline(
+          _requiredString(
+            item['answer_markdown'] ?? item['answerMarkdown'] ?? item['answer'],
+            field: 'Q&A item ${index + 1} answer',
+          ),
+          field: 'Q&A item ${index + 1} answer',
+          maxLength: StudyDeskSecurity.maxQaAnswerLength,
+          allowEmpty: false,
+        );
+        final tags = normalizeTags(
+          (((item['tags'] as List?) ?? const []).map((entry) => entry.toString())),
+        );
+        final requestedUnitId = _nullableString(item['unit_id'] ?? item['unitId']);
+        final resolvedUnitId = _resolveImportedUnitId(
+          requestedUnitId: requestedUnitId,
+          fallbackUnitId: unitId,
+          validUnitIds: validUnitIds,
+        );
+        final itemId = '${now.microsecondsSinceEpoch}_qa_$index';
+        importedItems.add(
+          QaItemRecord(
+            id: itemId,
+            subjectId: subjectId,
+            unitId: resolvedUnitId,
+            question: question,
+            answerMarkdown: answerMarkdown,
+            tags: tags,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+        importedReviews.add(
+          QaReviewRecord.initial(
+            promptId: itemId,
+            subjectId: subjectId,
+            unitId: resolvedUnitId,
+          ),
+        );
+      }
+
+      for (final item in importedItems) {
+        await qaItemsRepository.upsertItem(item);
+      }
+      for (final review in importedReviews) {
+        await qaReviewRepository.upsertReview(review);
+      }
+
+      final label = StudyDeskSecurity.sanitizeSingleLine(
+        (content?['name'] as String?)?.trim().isNotEmpty == true
+            ? content!['name'] as String
+            : 'Imported Q&A Bank',
+        field: 'Q&A bank name',
+        maxLength: StudyDeskSecurity.maxShortTitleLength,
+      );
+
+      return QaBankImportResult(
+        primaryId: importedItems.first.id,
+        label: label,
+        importedItemCount: importedItems.length,
+      );
+    } on FormatException {
+      rethrow;
+    } catch (_) {
+      throw const FormatException('Q&A import structure is invalid.');
+    }
   }
 
   Future<List<QuizAttemptSessionRecord>> loadQuizAttempts() {
@@ -1493,6 +1807,11 @@ class ContentPortabilityService {
         if (question.options.length < 2) {
           throw FormatException('Question ${index + 1} needs at least two options.');
         }
+        if (question.options.length > StudyDeskSecurity.maxQuizOptions) {
+          throw FormatException(
+            'Question ${index + 1} exceeds the maximum supported option count.',
+          );
+        }
         final correctIndex = question.correctIndex;
         if (correctIndex == null || correctIndex < 0 || correctIndex >= question.options.length) {
           throw FormatException('Question ${index + 1} has an invalid correct option index.');
@@ -1517,6 +1836,85 @@ class ContentPortabilityService {
         }
       }
     }
+  }
+
+  QuizQuestion _sanitizeImportedQuestion(
+    QuizQuestion question, {
+    required int index,
+  }) {
+    final labelIndex = index + 1;
+    return QuizQuestion(
+      id: question.id,
+      type: question.type,
+      question: StudyDeskSecurity.sanitizeMultiline(
+        question.question,
+        field: 'Question $labelIndex text',
+        maxLength: StudyDeskSecurity.maxQuizQuestionLength,
+        allowEmpty: false,
+      ),
+      options: question.options
+          .map(
+            (option) => StudyDeskSecurity.sanitizeSingleLine(
+              option,
+              field: 'Question $labelIndex option',
+              maxLength: StudyDeskSecurity.maxQuizOptionLength,
+            ),
+          )
+          .take(StudyDeskSecurity.maxQuizOptions)
+          .toList(),
+      correctIndex: question.correctIndex,
+      correctAnswer: question.correctAnswer,
+      correctAnswers: question.correctAnswers
+          .map(
+            (answer) => StudyDeskSecurity.sanitizeSingleLine(
+              answer,
+              field: 'Question $labelIndex accepted answer',
+              maxLength: StudyDeskSecurity.maxQuizOptionLength,
+            ),
+          )
+          .toList(),
+      caseSensitive: question.caseSensitive,
+      modelAnswer: StudyDeskSecurity.sanitizeMultiline(
+        question.modelAnswer,
+        field: 'Question $labelIndex model answer',
+        maxLength: StudyDeskSecurity.maxQaAnswerLength,
+      ),
+      keywords: StudyDeskSecurity.sanitizeTags(question.keywords),
+      keywordRules: [
+        for (final rule in question.keywordRules)
+          QuizKeywordRule(
+            term: StudyDeskSecurity.sanitizeSingleLine(
+              rule.term,
+              field: 'Question $labelIndex keyword term',
+              maxLength: StudyDeskSecurity.maxTagLength,
+            ),
+            aliases: StudyDeskSecurity.sanitizeTags(rule.aliases),
+            required: rule.required,
+            weight: rule.weight.isFinite && rule.weight > 0 ? rule.weight : 1,
+          ),
+      ],
+      minWords: question.minWords,
+      maxWords: question.maxWords,
+      minimumKeywordMatches: question.minimumKeywordMatches,
+      minimumKeywordScorePercent:
+          question.minimumKeywordScorePercent?.clamp(0, 1),
+      allowPartialCredit: question.allowPartialCredit,
+      gradingMode: question.gradingMode,
+      explanation: StudyDeskSecurity.sanitizeMultiline(
+        question.explanation,
+        field: 'Question $labelIndex explanation',
+        maxLength: StudyDeskSecurity.maxQuizExplanationLength,
+      ),
+      points: question.points.isFinite ? question.points : 1,
+      grading: question.grading == null
+          ? null
+          : QuizQuestionGrading(
+              negativeMarking: question.grading!.negativeMarking,
+              wrongPoints: question.grading!.wrongPoints.isFinite
+                  ? question.grading!.wrongPoints
+                  : 0,
+            ),
+    );
   }
 
   List<QuizAttemptItemRecord> _collectLatestWrongItems(
@@ -1770,7 +2168,29 @@ class QuizImportResult {
   final int importedQuestionCount;
 }
 
-enum StudyImportType { deck, quiz }
+class NoteImportResult {
+  const NoteImportResult({
+    required this.noteId,
+    required this.noteTitle,
+  });
+
+  final String noteId;
+  final String noteTitle;
+}
+
+class QaBankImportResult {
+  const QaBankImportResult({
+    required this.primaryId,
+    required this.label,
+    required this.importedItemCount,
+  });
+
+  final String primaryId;
+  final String label;
+  final int importedItemCount;
+}
+
+enum StudyImportType { deck, quiz, note, qaBank }
 
 class StudyImportResult {
   const StudyImportResult({
@@ -1802,10 +2222,92 @@ class StudyImportResult {
          itemCount: itemCount,
        );
 
+  const StudyImportResult.note({
+    required String id,
+    required String name,
+    required int itemCount,
+  }) : this(
+         type: StudyImportType.note,
+         id: id,
+         name: name,
+         itemCount: itemCount,
+       );
+
+  const StudyImportResult.qaBank({
+    required String id,
+    required String name,
+    required int itemCount,
+  }) : this(
+         type: StudyImportType.qaBank,
+         id: id,
+         name: name,
+         itemCount: itemCount,
+       );
+
   final StudyImportType type;
   final String id;
   final String name;
   final int itemCount;
+}
+
+String _requiredString(Object? value, {required String field}) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty) {
+    throw FormatException('$field is required.');
+  }
+  return text;
+}
+
+String? _nullableString(Object? value) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+  return text;
+}
+
+String? _resolveImportedUnitId({
+  required String? requestedUnitId,
+  required String? fallbackUnitId,
+  required Set<String> validUnitIds,
+}) {
+  if (requestedUnitId != null && validUnitIds.contains(requestedUnitId)) {
+    return requestedUnitId;
+  }
+  if (fallbackUnitId != null && validUnitIds.contains(fallbackUnitId)) {
+    return fallbackUnitId;
+  }
+  return null;
+}
+
+String _ensureUniqueNoteTitle(String title, List<NoteRecord> existingNotes) {
+  final existingTitles = existingNotes
+      .map((note) => note.title.trim().toLowerCase())
+      .toSet();
+  if (!existingTitles.contains(title.trim().toLowerCase())) {
+    return title;
+  }
+  var suffix = 2;
+  while (true) {
+    final candidate = '$title ($suffix)';
+    if (!existingTitles.contains(candidate.trim().toLowerCase())) {
+      return candidate;
+    }
+    suffix += 1;
+  }
+}
+
+List<Map<String, dynamic>> _extractQaImportItems(
+  Map<String, dynamic> parsed,
+  Map<String, dynamic>? content,
+) {
+  final items = (content?['items'] as List?) ?? (parsed['items'] as List?) ?? const [];
+  return items.map((item) {
+    if (item is! Map) {
+      throw const FormatException('Q&A import contains an invalid item object.');
+    }
+    return Map<String, dynamic>.from(item);
+  }).toList();
 }
 
 class _TagPerformance {

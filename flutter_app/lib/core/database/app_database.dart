@@ -53,6 +53,17 @@ class AppDatabase {
     await instance;
   }
 
+  Future<DatabaseAuditReport> auditConsistency() async {
+    final db = await instance;
+    final quickCheck = await db.rawQuery('PRAGMA quick_check');
+    final foreignKeyIssues = await db.rawQuery('PRAGMA foreign_key_check');
+    return DatabaseAuditReport(
+      quickCheckPassed:
+          quickCheck.isNotEmpty && quickCheck.first.values.first == 'ok',
+      foreignKeyViolations: foreignKeyIssues.length,
+    );
+  }
+
   Future<Database> _open() async {
     if (kIsWeb) {
       throw StateError(
@@ -70,6 +81,14 @@ class AppDatabase {
         version: 10,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON');
+          await db.rawQuery('PRAGMA journal_mode = WAL');
+          await db.execute('PRAGMA busy_timeout = 5000');
+          await db.execute('PRAGMA secure_delete = ON');
+          try {
+            await db.execute('PRAGMA trusted_schema = OFF');
+          } catch (_) {
+            // Older SQLite builds may not support trusted_schema.
+          }
         },
         onCreate: (db, version) async {
           await _createSchema(db);
@@ -107,7 +126,25 @@ class AppDatabase {
     );
 
     await _migrateLegacySharedPreferences(database);
+    await _runPostOpenIntegrityChecks(database);
     return database;
+  }
+
+  Future<void> _runPostOpenIntegrityChecks(Database db) async {
+    final quickCheck = await db.rawQuery('PRAGMA quick_check');
+    final quickResult = quickCheck.isEmpty ? null : quickCheck.first.values.first;
+    if (quickResult != 'ok') {
+      throw StateError(
+        'StudyDesk detected a database integrity problem during startup.',
+      );
+    }
+
+    final foreignKeyIssues = await db.rawQuery('PRAGMA foreign_key_check');
+    if (foreignKeyIssues.isNotEmpty) {
+      throw StateError(
+        'StudyDesk detected a relational integrity problem during startup.',
+      );
+    }
   }
 
   Future<String> _resolveDatabaseDirectory(DatabaseFactory factory) async {
@@ -970,4 +1007,16 @@ class AppDatabase {
 
     await prefs.setBool(_migrationFlagKey, true);
   }
+}
+
+class DatabaseAuditReport {
+  const DatabaseAuditReport({
+    required this.quickCheckPassed,
+    required this.foreignKeyViolations,
+  });
+
+  final bool quickCheckPassed;
+  final int foreignKeyViolations;
+
+  bool get isHealthy => quickCheckPassed && foreignKeyViolations == 0;
 }

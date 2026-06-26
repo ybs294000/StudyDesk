@@ -1,3 +1,4 @@
+import '../../../core/security/studydesk_security.dart';
 import '../domain/note_record.dart';
 
 class NoteHeading {
@@ -216,19 +217,7 @@ String? currentHeadingForOffset(String markdown, int offset) {
 }
 
 List<String> normalizeTags(Iterable<String> tags) {
-  final seen = <String>{};
-  final normalized = <String>[];
-  for (final raw in tags) {
-    final value = raw.trim();
-    if (value.isEmpty) {
-      continue;
-    }
-    final key = value.toLowerCase();
-    if (seen.add(key)) {
-      normalized.add(value);
-    }
-  }
-  return normalized;
+  return StudyDeskSecurity.sanitizeTags(tags);
 }
 
 List<String> deriveKeywordsFromMarkdown(

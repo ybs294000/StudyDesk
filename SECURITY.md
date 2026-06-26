@@ -2,49 +2,69 @@
 
 ## Supported Versions
 
-StudyDesk is in active alpha development. Security fixes are applied on the active mainline rather than through backports to multiple maintained versions.
+StudyDesk is currently maintained on the active `main` branch. Security fixes are applied to the latest repository state rather than backported across multiple release lines.
 
 ## Reporting a Vulnerability
 
-If you discover a security issue, please report it privately to the maintainer instead of opening a public issue with exploit details.
+Please report security issues privately to the repository owner rather than opening a public issue with exploit details.
 
 Include:
 
-- A clear description of the issue
-- Affected files, screens, or features
-- Reproduction steps
-- Expected impact
-- Any suggested mitigation if you have one
+- affected screen, workflow, or file format
+- reproduction steps
+- expected impact
+- platform used
+- any logs or sample payloads needed to reproduce the issue safely
 
-Until a dedicated security contact or disclosure channel is published, use the repository owner contact path associated with the Git hosting profile.
+## Security Posture
 
-## Security Principles for This Repo
+StudyDesk follows these baseline security rules:
 
-- No hardcoded API keys, signing secrets, or service credentials
-- User study data should remain local by default
-- AI integrations must be explicit and opt-in
-- HTTPS-only for future network features
-- Sensitive settings belong in secure device storage when implemented
-- Dependencies and platform configuration should be kept current enough for store compliance
+- study content remains local by default
+- no provider credentials are bundled with the app
+- no hidden network calls are part of normal study flows
+- imports are validated before persistence
+- native persistence uses SQLite with foreign keys enabled
+- native startup performs SQLite integrity checks before normal app use
 
-## Current Caveats
+## Current Hardening Measures
 
-- The app is not release-ready yet
-- Some planned hardening work is still open
-- Web support exists for development/testing convenience, but Android-first release quality remains the primary target
+The repository currently includes these defensive controls:
 
-## What Not to Commit
+- import size limits for JSON, CSV, and Markdown files
+- strict UTF-8 decoding for imported text assets
+- top-level JSON object validation for StudyDesk import payloads
+- normalized text sanitation before persistence for notes, Q&A items, decks, cards, quizzes, units, and subjects
+- sanitized export filenames to avoid unsafe path characters
+- SQLite startup checks using `PRAGMA quick_check` and `PRAGMA foreign_key_check`
+- `WAL`, `busy_timeout`, and `secure_delete` configuration on native SQLite startup
+
+## Current Limitations
+
+StudyDesk is still a local-first desktop and mobile application in active development. It is not yet positioned as a hardened cloud service or a multi-user platform.
+
+The following items remain future work:
+
+- secure storage for bring-your-own-key AI credentials
+- explicit certificate and network security configuration for release Android builds
+- documented retention and deletion expectations for future AI request logs
+- automated regression tests for malformed import payloads and corrupted persistence states
+
+## AI Bring-Your-Own-Key Requirements
+
+Any future AI integration must follow these rules:
+
+- API keys must be user-supplied
+- API keys must be stored in platform-appropriate secure storage, not in SQLite or plain preferences
+- off-device submission must be explicit, user-triggered, and attributable to a selected provider
+- StudyDesk must remain fully usable when AI is disabled or unconfigured
+
+## What Must Not Be Committed
 
 Do not commit:
 
-- `.env` files with real credentials
 - API keys
-- private certificates or signing keys
-- exported personal study data that is not intended as sample content
-
-## Security-Related Future Work
-
-- Secure storage for BYOK AI credentials
-- Network security configuration for Android release builds
-- Privacy-policy-ready data inventory
-- Release checklist for Play Store readiness
+- signing keys or certificates
+- local environment files with credentials
+- personal study exports that are not intended as sample content
+- private planning notes or internal assistant instructions

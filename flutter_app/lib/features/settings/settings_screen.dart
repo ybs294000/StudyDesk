@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import '../../core/settings/profile_settings_controller.dart';
 import '../../core/settings/theme_mode_controller.dart';
 import '../../core/settings/theme_preset_controller.dart';
+import '../ai/application/ai_generation_service.dart';
+import '../ai/application/ai_settings_controller.dart';
+import '../ai/domain/ai_provider_type.dart';
 import '../../services/content_portability_service.dart';
 import '../../services/export_file_service.dart';
 import '../../services/library_backup_service.dart';
@@ -24,6 +27,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _pomodoroWorkController;
   late final TextEditingController _pomodoroBreakController;
   late final TextEditingController _schemaTemplateController;
+  late final TextEditingController _openAiModelController;
+  late final TextEditingController _claudeModelController;
+  late final TextEditingController _openAiKeyController;
+  late final TextEditingController _claudeKeyController;
   String? _lastAppliedDisplayName;
   int? _lastAppliedGoal;
   SchemaPreset? _selectedSchemaPreset;
@@ -46,6 +53,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _qaSpacedRepetitionEnabled = true;
   bool _quizPracticeSchedulingEnabled = true;
   bool _pomodoroEnabled = true;
+  AiProviderType? _lastAppliedAiProvider;
+  String? _lastAppliedOpenAiModel;
+  String? _lastAppliedClaudeModel;
 
   @override
   void initState() {
@@ -55,6 +65,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _pomodoroWorkController = TextEditingController();
     _pomodoroBreakController = TextEditingController();
     _schemaTemplateController = TextEditingController();
+    _openAiModelController = TextEditingController();
+    _claudeModelController = TextEditingController();
+    _openAiKeyController = TextEditingController();
+    _claudeKeyController = TextEditingController();
   }
 
   @override
@@ -64,6 +78,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _pomodoroWorkController.dispose();
     _pomodoroBreakController.dispose();
     _schemaTemplateController.dispose();
+    _openAiModelController.dispose();
+    _claudeModelController.dispose();
+    _openAiKeyController.dispose();
+    _claudeKeyController.dispose();
     super.dispose();
   }
 
@@ -72,6 +90,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final themeMode = ref.watch(themeModeControllerProvider);
     final themePreset = ref.watch(themePresetControllerProvider);
     final profile = ref.watch(profileSettingsControllerProvider);
+    final aiSettingsAsync = ref.watch(aiSettingsControllerProvider);
     final isCompact = MediaQuery.sizeOf(context).width < 840;
 
     if (_lastAppliedDisplayName != profile.displayName ||
@@ -124,6 +143,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _qaSpacedRepetitionEnabled = profile.qaSpacedRepetitionEnabled;
       _quizPracticeSchedulingEnabled = profile.quizPracticeSchedulingEnabled;
       _pomodoroEnabled = profile.pomodoroEnabled;
+    }
+    final aiSettings = aiSettingsAsync.valueOrNull;
+    if (aiSettings != null &&
+        (_lastAppliedAiProvider != aiSettings.selectedProvider ||
+            _lastAppliedOpenAiModel != aiSettings.openAiModel ||
+            _lastAppliedClaudeModel != aiSettings.claudeModel)) {
+      _openAiModelController.text = aiSettings.openAiModel;
+      _claudeModelController.text = aiSettings.claudeModel;
+      _lastAppliedAiProvider = aiSettings.selectedProvider;
+      _lastAppliedOpenAiModel = aiSettings.openAiModel;
+      _lastAppliedClaudeModel = aiSettings.claudeModel;
     }
 
     return ListView(
@@ -195,6 +225,164 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: aiSettingsAsync.when(
+              data: (aiSettings) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Providers',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'StudyDesk uses bring-your-own-key AI. Keys stay on this device, and generated content still has to pass StudyDesk validation before it is imported.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  if (aiSettings.sessionOnlyOnWeb) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'On web, API keys are session-only and disappear when the tab is closed.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+                  DropdownButtonFormField<AiProviderType>(
+                    initialValue: aiSettings.selectedProvider,
+                    decoration: const InputDecoration(
+                      labelText: 'Default provider',
+                      prefixIcon: Icon(Icons.hub_rounded),
+                    ),
+                    items: [
+                      for (final provider in AiProviderType.values)
+                        DropdownMenuItem<AiProviderType>(
+                          value: provider,
+                          child: Text(provider.label),
+                        ),
+                    ],
+                    onChanged: (value) async {
+                      if (value == null) {
+                        return;
+                      }
+                      await ref
+                          .read(aiSettingsControllerProvider.notifier)
+                          .saveProvider(value);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (isCompact)
+                    Column(
+                      children: [
+                        TextField(
+                          controller: _openAiModelController,
+                          decoration: const InputDecoration(
+                            labelText: 'OpenAI model',
+                            hintText: 'gpt-5.5',
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextField(
+                          controller: _claudeModelController,
+                          decoration: const InputDecoration(
+                            labelText: 'Claude model',
+                            hintText: 'claude-sonnet-4-6',
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _openAiModelController,
+                            decoration: const InputDecoration(
+                              labelText: 'OpenAI model',
+                              hintText: 'gpt-5.5',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: TextField(
+                            controller: _claudeModelController,
+                            decoration: const InputDecoration(
+                              labelText: 'Claude model',
+                              hintText: 'claude-sonnet-4-6',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: AppSpacing.sm),
+                  FilledButton.tonalIcon(
+                    onPressed: _saveAiModels,
+                    icon: const Icon(Icons.save_rounded),
+                    label: const Text('Save Models'),
+                  ),
+                  const Divider(height: AppSpacing.xl),
+                  if (isCompact)
+                    Column(
+                      children: [
+                        _AiKeySection(
+                          controller: _openAiKeyController,
+                          provider: AiProviderType.openAi,
+                          hasSavedKey: aiSettings.hasOpenAiKey,
+                          onSave: () => _saveAiKey(AiProviderType.openAi),
+                          onDelete: () => _deleteAiKey(AiProviderType.openAi),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _AiKeySection(
+                          controller: _claudeKeyController,
+                          provider: AiProviderType.claude,
+                          hasSavedKey: aiSettings.hasClaudeKey,
+                          onSave: () => _saveAiKey(AiProviderType.claude),
+                          onDelete: () => _deleteAiKey(AiProviderType.claude),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _AiKeySection(
+                            controller: _openAiKeyController,
+                            provider: AiProviderType.openAi,
+                            hasSavedKey: aiSettings.hasOpenAiKey,
+                            onSave: () => _saveAiKey(AiProviderType.openAi),
+                            onDelete: () => _deleteAiKey(AiProviderType.openAi),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _AiKeySection(
+                            controller: _claudeKeyController,
+                            provider: AiProviderType.claude,
+                            hasSavedKey: aiSettings.hasClaudeKey,
+                            onSave: () => _saveAiKey(AiProviderType.claude),
+                            onDelete: () => _deleteAiKey(AiProviderType.claude),
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton.icon(
+                    onPressed: () => _testAiConnection(aiSettings.selectedProvider),
+                    icon: const Icon(Icons.network_check_rounded),
+                    label: Text('Test ${aiSettings.selectedProvider.label}'),
+                  ),
+                ],
+              ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) =>
+                  Text('Could not load AI settings: $error'),
             ),
           ),
         ),
@@ -777,6 +965,92 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _saveAiModels() async {
+    try {
+      await ref.read(aiSettingsControllerProvider.notifier).saveModels(
+            openAiModel: _openAiModelController.text,
+            claudeModel: _claudeModelController.text,
+          );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('AI models saved.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save AI models: $error')),
+      );
+    }
+  }
+
+  Future<void> _saveAiKey(AiProviderType provider) async {
+    final controller = provider == AiProviderType.openAi
+        ? _openAiKeyController
+        : _claudeKeyController;
+    try {
+      await ref.read(aiSettingsControllerProvider.notifier).saveApiKey(
+            provider: provider,
+            apiKey: controller.text,
+          );
+      controller.clear();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${provider.label} API key saved.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save ${provider.label} key: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteAiKey(AiProviderType provider) async {
+    try {
+      await ref.read(aiSettingsControllerProvider.notifier).deleteApiKey(provider);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${provider.label} API key deleted.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete ${provider.label} key: $error')),
+      );
+    }
+  }
+
+  Future<void> _testAiConnection(AiProviderType provider) async {
+    try {
+      await ref.read(aiGenerationServiceProvider).testConnection(provider: provider);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${provider.label} connection is ready.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not reach ${provider.label}: $error')),
+      );
+    }
+  }
+
   Future<void> _chooseBackupFolder() async {
     try {
       final path = await ref.read(exportFileServiceProvider).pickDirectory(
@@ -1155,6 +1429,59 @@ class _ThemePresetTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AiKeySection extends StatelessWidget {
+  const _AiKeySection({
+    required this.controller,
+    required this.provider,
+    required this.hasSavedKey,
+    required this.onSave,
+    required this.onDelete,
+  });
+
+  final TextEditingController controller;
+  final AiProviderType provider;
+  final bool hasSavedKey;
+  final Future<void> Function() onSave;
+  final Future<void> Function() onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: '${provider.label} API key',
+            hintText: hasSavedKey ? 'Saved on this device' : 'Paste key',
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: () => onSave(),
+              icon: const Icon(Icons.key_rounded),
+              label: Text(
+                hasSavedKey ? 'Replace ${provider.label} Key' : 'Save ${provider.label} Key',
+              ),
+            ),
+            if (hasSavedKey)
+              FilledButton.tonalIcon(
+                onPressed: () => onDelete(),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Delete'),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
